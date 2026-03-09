@@ -236,7 +236,7 @@ def run_all_predictions(sensor, config):
 
     log.info(
         "Complete — disease:%s  irrigation:%s  yield:%s",
-        results["disease"]["label"],
+        results.get("disease", {}).get("label", "N/A"),
         results["irrigation"]["label"],
         f"{results['yield'].get('kgPerHa', 'N/A')} kg/ha"
     )
