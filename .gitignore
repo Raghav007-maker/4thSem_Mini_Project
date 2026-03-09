@@ -1,7 +1,7 @@
 backend/models/*.pkl
 
 # Firebase key — sensitive
-firebase_key.json
+firebase-key.json
 
 # Python
 __pycache__/
