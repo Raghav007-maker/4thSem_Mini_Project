@@ -41,9 +41,6 @@ yield_model = joblib.load(os.path.join(BASE, "models", "crop_yield_model.pkl"))
 log.info("All models loaded.")
 
 # ── Crop name maps ────────────────────────────────────────────────────────────
-# Key   = what user sets in Firebase config (always lowercase)
-# Value = exact name the model was trained on
-
 DISEASE_CROPS = {
     "rice"       : "rice",
     "maize"      : "maize",
@@ -156,13 +153,13 @@ def predict_irrigation(sensor, config):
 
     crop_enc = irrigation_le.transform([IRRIGATION_CROPS[crop]])[0]
 
-    X_raw = np.array([[
-        int(crop_enc),
-        int(config.get("cropDays", 30)),
-        float(sensor["soilMoisture"]),
-        float(sensor["temperature"]),
-        float(sensor["humidity"])
-    ]])
+    X_raw = pd.DataFrame([{
+        "CropType_enc": int(crop_enc),
+        "CropDays"    : int(config.get("cropDays", 30)),
+        "SoilMoisture": float(sensor["soilMoisture"]),
+        "temperature" : float(sensor["temperature"]),
+        "Humidity"    : float(sensor["humidity"])
+    }])
 
     X_scaled = irrigation_scaler.transform(X_raw)
     pred     = irrigation_model.predict(X_scaled)[0]
@@ -189,12 +186,14 @@ def predict_yield(sensor, config):
             "timestamp": datetime.utcnow().isoformat()
         }
 
+    # ── FIX 2: use raw column name 'pesticides_tonnes' ──
+    # The pipeline handles log transformation internally
     X = pd.DataFrame([{
         "Area"                         : config.get("country", "India"),
         "Item"                         : YIELD_CROPS[crop],
         "Year"                         : int(config.get("year", datetime.utcnow().year)),
         "average_rain_fall_mm_per_year": float(sensor["rainfall"]),
-        "pesticides_log"               : np.log1p(float(config.get("pesticides", 100))),
+        "pesticides_tonnes"            : float(config.get("pesticides", 100)),
         "avg_temp"                     : float(sensor["temperature"])
     }])
 
@@ -237,8 +236,8 @@ def run_all_predictions(sensor, config):
     log.info(
         "Complete — disease:%s  irrigation:%s  yield:%s",
         results.get("disease", {}).get("label", "N/A"),
-        results["irrigation"]["label"],
-        f"{results['yield'].get('kgPerHa', 'N/A')} kg/ha"
+        results.get("irrigation", {}).get("label", "N/A"),
+        f"{results.get('yield', {}).get('kgPerHa', 'N/A')} kg/ha"
     )
 
     return results
@@ -311,7 +310,6 @@ def predict_now():
 
 @app.route("/crops", methods=["GET"])
 def supported_crops():
-    """Returns all supported crops per model."""
     return jsonify({
         "disease_model"   : sorted(list(DISEASE_CROPS.keys())),
         "irrigation_model": sorted(list(IRRIGATION_CROPS.keys())),

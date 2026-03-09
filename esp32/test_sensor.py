@@ -10,9 +10,9 @@ firebase_admin.initialize_app(cred, {
 
 # Fake sensor data — edit these values to test different scenarios
 sensor_data = {
-    "temperature"  : 42.0,
-    "humidity"     : 88.0,
-    "soilMoisture" : 250,
+    "temperature"  : 28.5,   # ← change this
+    "humidity"     : 75.0,   # ← change this
+    "soilMoisture" : 450,
     "rainfall"     : 250.0,
     "ph"           : 4.5,
     "N": 20, "P": 15, "K": 10,
