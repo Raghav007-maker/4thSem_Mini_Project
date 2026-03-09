@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AgroMind | Precision Farming Intelligence</title>
+
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+
+<!-- ══ FIREBASE SDK ════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { 'ag-deep':'#0a0f0d','ag-lime':'#00FF88','ag-cyan':'#00D4FF','ag-danger':'#FF3D3D','ag-warn':'#FFB800' },
+      fontFamily: { display:['Orbitron','sans-serif'], sans:['Inter','sans-serif'], mono:['JetBrains Mono','monospace'] },
+      animation: { 'pulse-slow':'pulse 3s cubic-bezier(0.4,0,0.6,1) infinite' }
+    }}
+  }
+</script>
+
+<style>
+  body { background-color:#0a0f0d; color:#F8FAFC; font-family:"Inter",sans-serif; margin:0; overflow-x:hidden; }
+  .mesh-bg { position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1;
+    background: radial-gradient(circle at 10% 20%,rgba(0,212,255,0.03) 0%,transparent 50%),
+                radial-gradient(circle at 90% 80%,rgba(0,255,136,0.02) 0%,transparent 50%); }
+  .glass-card { background:rgba(15,23,20,0.7); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,0.05); transition:all 0.3s ease; }
+  .glass-card:hover { border-color:rgba(0,212,255,0.3); background:rgba(20,30,26,0.8); }
+  .glow-cyan { text-shadow:0 0 15px rgba(0,212,255,0.4); }
+  .glow-lime { text-shadow:0 0 15px rgba(0,255,136,0.4); }
+  .status-pulse { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; }
+  .shimmer { background:linear-gradient(90deg,rgba(255,255,255,0.03) 25%,rgba(255,255,255,0.08) 50%,rgba(255,255,255,0.03) 75%);
+    background-size:200% 100%; animation:shimmer 1.5s infinite; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  .alert-slide { animation:slideIn 0.4s ease forwards; }
+</style>
+</head>
+
+<body class="min-h-screen">
+<div class="mesh-bg"></div>
+
+<!-- Firebase status bar -->
+<div id="fb-status-bar" class="w-full text-center text-[10px] font-mono py-1 bg-yellow-900/40 text-yellow-300 border-b border-yellow-800/40">
+  Connecting to Firebase...
+</div>
+
+<!-- NAV -->
+<nav class="sticky top-0 z-50 w-full border-b border-white/10 bg-ag-deep/80 backdrop-blur-md py-4 px-6 flex justify-between items-center">
+  <div class="flex items-center gap-3">
+    <div class="relative flex items-center justify-center w-10 h-10">
+      <span class="material-symbols-outlined text-ag-cyan text-3xl">eco</span>
+      <div class="absolute inset-0 border border-ag-cyan/30 rounded-lg rotate-45 animate-pulse-slow"></div>
+    </div>
+    <span class="font-display text-2xl tracking-tighter text-white">AGRO<span class="text-ag-cyan">MIND</span></span>
+  </div>
+  <div class="hidden md:block">
+    <h2 class="text-[10px] uppercase tracking-[0.3em] text-white/40 font-mono">Precision Farming Intelligence Platform</h2>
+  </div>
+  <div class="flex items-center gap-6">
+    <div class="flex items-center font-mono text-xs">
+      <span class="status-pulse bg-ag-lime animate-pulse"></span>
+      <span class="text-white/60" id="live-time">--:--:-- UTC</span>
+    </div>
+    <div class="flex items-center bg-white/5 rounded-full px-4 py-1 border border-white/10">
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input class="sr-only peer" id="demo-toggle" type="checkbox"/>
+        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ag-lime"></div>
+        <span class="ms-3 text-xs font-mono text-white/60">DEMO MODE</span>
+      </label>
+    </div>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto p-6 space-y-8">
+
+  <!-- HERO -->
+  <section class="glass-card rounded-2xl p-8">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+      <div>
+        <p class="font-mono text-sm tracking-widest uppercase mb-1 text-ag-cyan">Active Cultivation</p>
+        <h1 class="font-display text-5xl md:text-7xl font-bold text-white mb-2">
+          <span id="hero-crop">LOADING</span>
+          <span class="text-white/20 text-3xl font-mono"> / <span id="hero-country">--</span></span>
+        </h1>
+        <div class="flex items-center gap-4 text-white/60 font-mono text-xs">
+          <span>CROP_DAYS: <span id="hero-days" class="text-ag-lime">--</span></span>
+          <span class="w-1 h-1 bg-white/40 rounded-full"></span>
+          <span>YEAR: <span id="hero-year" class="text-ag-cyan">--</span></span>
+        </div>
+      </div>
+      <div class="w-full md:w-1/3 space-y-2">
+        <div class="flex justify-between text-xs font-mono mb-1">
+          <span class="text-white/40">CROP MATURITY</span>
+          <span class="text-ag-lime" id="crop-age-pct">--%</span>
+        </div>
+        <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+          <div class="h-full bg-ag-lime shadow-[0_0_15px_rgba(0,255,136,0.5)] transition-all duration-1000" id="crop-age-bar" style="width:0%"></div>
+        </div>
+        <p class="text-[10px] text-white/30 text-right">MAX CYCLE: 180 days</p>
+      </div>
+      <div class="flex flex-col items-center justify-center px-8 border-l border-white/10">
+        <span class="text-[10px] text-white/40 font-mono mb-2">SYSTEM HEALTH</span>
+        <div class="px-4 py-2 rounded-full border font-display text-sm tracking-widest animate-pulse-slow" id="health-status"
+          style="border-color:#00FF88;color:#00FF88;background:rgba(0,255,136,0.08)">LOADING...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SENSORS -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <!-- temp -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-mono text-white">AIR TEMPERATURE</span>
+        <span class="material-symbols-outlined text-ag-cyan text-xl">thermostat</span>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-temp">--</span>
+        <span class="text-xs text-white/80">°C</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full transition-all duration-500 bg-ag-cyan" id="bar-temp" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- humidity -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-mono text-white">HUMIDITY</span>
+        <span class="material-symbols-outlined text-ag-cyan text-xl">humidity_mid</span>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-humidity">--</span>
+        <span class="text-xs text-white/80">%</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full transition-all duration-500 bg-ag-cyan" id="bar-humidity" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- soil moisture -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-mono text-white">SOIL MOISTURE</span>
+        <span class="material-symbols-outlined text-ag-cyan text-xl">water_drop</span>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-moisture">--</span>
+        <span class="text-xs text-white/80">%</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full transition-all duration-500 bg-ag-cyan" id="bar-moisture" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- rainfall -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-mono text-white">RAINFALL</span>
+        <span class="material-symbols-outlined text-ag-cyan text-xl">rainy</span>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-rain">--</span>
+        <span class="text-xs text-white/80">mm/yr</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full transition-all duration-500 bg-ag-cyan" id="bar-rain" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- ph -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32">
+      <div class="flex justify-between items-start">
+        <span class="text-[10px] font-mono text-white">SOIL pH</span>
+        <span class="material-symbols-outlined text-ag-cyan text-xl">science</span>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-ph">--</span>
+        <span class="text-xs text-white/80">pH</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full transition-all duration-500 bg-ag-cyan" id="bar-ph" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- N -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32 border-l-4 border-l-ag-lime">
+      <span class="text-[10px] font-mono text-white">NITROGEN (N)</span>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-n">--</span>
+        <span class="text-xs text-white/80">mg/kg</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="bg-ag-lime h-full transition-all duration-500" id="bar-n" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- P -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32 border-l-4 border-l-ag-lime">
+      <span class="text-[10px] font-mono text-white">PHOSPHORUS (P)</span>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-p">--</span>
+        <span class="text-xs text-white/80">mg/kg</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="h-full bg-ag-lime transition-all duration-500" id="bar-p" style="width:0%"></div>
+      </div>
+    </div>
+    <!-- K -->
+    <div class="glass-card p-4 rounded-xl flex flex-col justify-between h-32 border-l-4 border-l-ag-cyan">
+      <span class="text-[10px] font-mono text-white">POTASSIUM (K)</span>
+      <div class="flex items-baseline gap-1">
+        <span class="text-3xl font-display text-white shimmer" id="val-k">--</span>
+        <span class="text-xs text-white/80">mg/kg</span>
+      </div>
+      <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+        <div class="bg-ag-cyan h-full transition-all duration-500" id="bar-k" style="width:0%"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI PREDICTIONS -->
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <!-- Disease -->
+    <div class="glass-card rounded-2xl p-6 relative overflow-hidden">
+      <div class="flex justify-between mb-6">
+        <h3 class="font-display text-xs tracking-widest text-white/70">DISEASE RISK ASSESSMENT</h3>
+        <span class="px-2 py-0.5 rounded-md bg-ag-lime/10 text-ag-lime text-[10px] border border-ag-lime/20" id="disease-badge">LOADING</span>
+      </div>
+      <div class="flex items-center gap-6">
+        <div class="w-24 h-24 relative flex-shrink-0">
+          <canvas id="diseaseChart" width="96" height="96"></canvas>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-lg font-display text-white" id="disease-pct">--%</span>
+          </div>
+        </div>
+        <div class="flex-1">
+          <p class="font-bold mb-1 text-ag-lime" id="disease-status">LOADING...</p>
+          <p class="text-white/60 text-[11px] leading-tight" id="disease-rec">Awaiting data from Firebase...</p>
+          <p class="text-white/30 text-[10px] mt-2" id="disease-time"></p>
+        </div>
+      </div>
+      <div class="absolute bottom-0 left-0 w-full h-1 bg-white/10">
+        <div class="h-full transition-all duration-700 bg-ag-lime" id="disease-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Irrigation -->
+    <div class="glass-card rounded-2xl p-6 flex flex-col justify-between relative">
+      <h3 class="font-display text-xs tracking-widest mb-4 text-white/70">SMART IRRIGATION</h3>
+      <div class="flex flex-col items-center py-2">
+        <svg class="w-16 h-16 mb-4 transition-all duration-500 text-gray-600" id="irrigation-icon" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 21.5C8.41 21.5 5.5 18.59 5.5 15C5.5 12.06 9.53 5.4 11.23 2.74C11.61 2.14 12.39 2.14 12.77 2.74C14.47 5.4 18.5 12.06 18.5 15C18.5 18.59 15.59 21.5 12 21.5Z"/>
+        </svg>
+        <p class="text-2xl font-display mb-1 text-white" id="irrigation-status">LOADING...</p>
+        <p class="text-[10px] text-white/40 mb-3 text-center" id="irrigation-action">Awaiting prediction...</p>
+        <div class="w-full bg-white/5 rounded-full p-1 border border-white/10 flex items-center">
+          <span class="text-[9px] text-white/40 ml-2">CONFIDENCE</span>
+          <div class="h-1 bg-ag-cyan ml-4 flex-1 rounded-full transition-all duration-500" id="irrigation-conf-bar" style="width:0%"></div>
+          <span class="text-[9px] text-ag-cyan mx-2" id="irrigation-conf-val">--%</span>
+        </div>
+        <p class="text-white/30 text-[10px] mt-2" id="irrigation-time"></p>
+      </div>
+    </div>
+
+    <!-- Yield -->
+    <div class="glass-card rounded-2xl p-6 bg-gradient-to-br from-ag-lime/5 to-transparent">
+      <h3 class="font-display text-xs tracking-widest mb-6 text-white/70">ESTIMATED YIELD FORECAST</h3>
+      <div class="text-center py-4">
+        <div class="flex items-center justify-center gap-2 mb-2">
+          <span class="text-5xl font-display text-ag-cyan glow-cyan shimmer" id="yield-val">----</span>
+          <span class="text-white/40 text-xl font-mono">KG/HA</span>
+        </div>
+        <p class="text-white/40 text-xs font-mono mb-3" id="yield-hg">-- hg/ha</p>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono bg-white/5 text-white/40" id="yield-badge">
+          Awaiting data...
+        </div>
+        <p class="text-white/30 text-[10px] mt-3" id="yield-time"></p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- CHART -->
+  <section class="glass-card rounded-2xl p-6">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="font-display text-xs tracking-widest text-white/40 uppercase">Environmental Telemetry (Rolling 24h)</h3>
+      <div class="flex gap-4 text-[10px] text-white/60">
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-ag-lime inline-block"></span>MOISTURE</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-ag-cyan inline-block"></span>TEMP</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>HUMIDITY</span>
+      </div>
+    </div>
+    <div class="h-64"><canvas id="historicalChart"></canvas></div>
+  </section>
+
+  <!-- CONFIG BAR -->
+  <section class="flex flex-wrap gap-4">
+    <div class="flex-1 min-w-[160px] glass-card px-4 py-2 rounded-lg flex items-center justify-between">
+      <span class="text-[10px] text-white/40 uppercase font-mono">Crop</span>
+      <span class="text-xs text-ag-lime font-mono" id="cfg-crop">--</span>
+    </div>
+    <div class="flex-1 min-w-[160px] glass-card px-4 py-2 rounded-lg flex items-center justify-between">
+      <span class="text-[10px] text-white/40 uppercase font-mono">Country</span>
+      <span class="text-xs text-white font-mono" id="cfg-country">--</span>
+    </div>
+    <div class="flex-1 min-w-[160px] glass-card px-4 py-2 rounded-lg flex items-center justify-between">
+      <span class="text-[10px] text-white/40 uppercase font-mono">Crop Days</span>
+      <span class="text-xs text-ag-cyan font-mono" id="cfg-days">--</span>
+    </div>
+    <div class="flex-1 min-w-[160px] glass-card px-4 py-2 rounded-lg flex items-center justify-between">
+      <span class="text-[10px] text-white/40 uppercase font-mono">Pesticides</span>
+      <span class="text-xs text-white font-mono" id="cfg-pest">--</span>
+    </div>
+    <div class="flex-1 min-w-[160px] glass-card px-4 py-2 rounded-lg flex items-center justify-between">
+      <span class="text-[10px] text-white/40 uppercase font-mono">Year</span>
+      <span class="text-xs text-white font-mono" id="cfg-year">--</span>
+    </div>
+  </section>
+
+  <!-- ALERTS -->
+  <section>
+    <div class="flex items-center gap-2 mb-4">
+      <h3 class="font-display text-xs tracking-widest text-white/40 uppercase">System Intelligence Feed</h3>
+      <span class="w-full h-px bg-white/10"></span>
+    </div>
+    <div class="space-y-3 max-h-72 overflow-y-auto pr-2" id="alerts-container">
+      <div class="glass-card p-4 rounded-xl border-l-4 border-l-white/10">
+        <p class="text-xs text-white/30 font-mono">Waiting for Firebase data...</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="mt-12 border-t border-white/10 p-8 text-center">
+  <div class="flex flex-wrap justify-center gap-8 mb-6">
+    <div class="text-center">
+      <p class="text-[10px] text-white/40 uppercase mb-1">Disease Model</p>
+      <p class="text-xs text-ag-lime font-mono">RandomForest · 84.6% Acc</p>
+    </div>
+    <div class="text-center">
+      <p class="text-[10px] text-white/40 uppercase mb-1">Irrigation Model</p>
+      <p class="text-xs text-ag-cyan font-mono">GradientBoosting · 92.4% Acc</p>
+    </div>
+    <div class="text-center">
+      <p class="text-[10px] text-white/40 uppercase mb-1">Yield Model</p>
+      <p class="text-xs text-white font-mono">RandomForest · R²=0.987</p>
+    </div>
+  </div>
+  <p class="text-[10px] text-white/20 font-mono">
+    AgroMind — AI Smart Agriculture | 4th Semester Mini Project | Flask + Firebase + ML
+  </p>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  STEP 1 — REPLACE THESE 4 VALUES WITH YOUR FIREBASE CONFIG
+//  Firebase Console → Project Settings → Your Apps → Web App
+// ════════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyB5ZT5gACmP5txEgkF180gsnnYoDxQdHSE",
+  authDomain: "smart-agriculture-ai-6e8c5.firebaseapp.com",
+  databaseURL: "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com",
+  projectId: "smart-agriculture-ai-6e8c5"
+};
+// ════════════════════════════════════════════════════════════════
+
+// ── Demo data ─────────────────────────────────────────────────
+const DEMOS = [
+  { sensor:{temperature:28.5,humidity:75,soilMoisture:450,rainfall:120,ph:6.5,N:50,P:40,K:35},
+    pred:{disease:{label:"Healthy",atRiskProb:0.23,healthyProb:0.77,timestamp:new Date().toISOString()},
+          irrigation:{label:"No Irrigation",irrigate:0,confidence:0.95,timestamp:new Date().toISOString()},
+          yield:{kgPerHa:4586.19,hgPerHa:45861.9,timestamp:new Date().toISOString()}},
+    cfg:{cropType:"maize",country:"India",cropDays:45,pesticides:500,year:2024} },
+  { sensor:{temperature:32,humidity:92,soilMoisture:800,rainfall:220,ph:5.2,N:50,P:40,K:35},
+    pred:{disease:{label:"At_Risk",atRiskProb:0.81,healthyProb:0.19,timestamp:new Date().toISOString()},
+          irrigation:{label:"Irrigate",irrigate:1,confidence:0.99,timestamp:new Date().toISOString()},
+          yield:{kgPerHa:3233.20,hgPerHa:32332.0,timestamp:new Date().toISOString()}},
+    cfg:{cropType:"maize",country:"India",cropDays:60,pesticides:500,year:2024} },
+  { sensor:{temperature:35,humidity:30,soilMoisture:150,rainfall:40,ph:6.5,N:38,P:28,K:25},
+    pred:{disease:{label:"Healthy",atRiskProb:0.46,healthyProb:0.54,timestamp:new Date().toISOString()},
+          irrigation:{label:"No Irrigation",irrigate:0,confidence:0.99,timestamp:new Date().toISOString()},
+          yield:{kgPerHa:6989.32,hgPerHa:69893.2,timestamp:new Date().toISOString()}},
+    cfg:{cropType:"maize",country:"India",cropDays:30,pesticides:500,year:2024} },
+  { sensor:{temperature:42,humidity:88,soilMoisture:250,rainfall:250,ph:4.5,N:20,P:15,K:10},
+    pred:{disease:{label:"At_Risk",atRiskProb:0.61,healthyProb:0.39,timestamp:new Date().toISOString()},
+          irrigation:{label:"Irrigate",irrigate:1,confidence:0.94,timestamp:new Date().toISOString()},
+          yield:{kgPerHa:3233.93,hgPerHa:32339.3,timestamp:new Date().toISOString()}},
+    cfg:{cropType:"maize",country:"India",cropDays:90,pesticides:500,year:2024} }
+];
+
+// ── Globals ───────────────────────────────────────────────────
+let historicalChart, diseaseChart;
+let isDemoMode = false, demoInterval = null, demoIdx = 0;
+
+// ── Helpers ───────────────────────────────────────────────────
+const soilPct = r => Math.max(0,Math.min(100,Math.round(((800-r)/(800-120))*100)));
+const setText = (id,v) => { const e=document.getElementById(id); if(e){e.innerText=v; e.classList.remove('shimmer');} };
+const setBar  = (id,p,c) => { const e=document.getElementById(id); if(!e)return; e.style.width=`${Math.min(100,Math.max(0,p))}%`; if(c)e.style.background=c; };
+const fmtTs   = iso => { try{ return new Date(iso).toLocaleTimeString(); }catch{ return ''; } };
+
+const addAlert = (type,title,msg) => {
+  const c=document.getElementById('alerts-container');
+  const time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const colors={danger:'#FF3D3D',warning:'#FFB800',success:'#00FF88',info:'#00D4FF'};
+  const col=colors[type]||colors.info;
+  const d=document.createElement('div');
+  d.className='glass-card p-4 rounded-xl flex gap-4 items-center border-l-4 alert-slide';
+  d.style.borderLeftColor=col;
+  d.innerHTML=`<div class="flex-1"><p class="text-xs text-white font-medium">${title}</p><p class="text-[10px] text-white/40">${msg}</p></div><span class="text-[9px] font-mono text-white/20">${time}</span>`;
+  if(c.children.length===1&&c.children[0].querySelector('.text-white\\/30')) c.innerHTML='';
+  c.insertAdjacentElement('afterbegin',d);
+  if(c.children.length>12) c.lastElementChild.remove();
+};
+
+// ── Sensor update ─────────────────────────────────────────────
+const updateSensors = s => {
+  if(!s) return;
+  const tc = s.temperature>38?'#FF3D3D':s.temperature>32?'#FFB800':'#00D4FF';
+  setText('val-temp',parseFloat(s.temperature).toFixed(1)); setBar('bar-temp',(s.temperature/50)*100,tc);
+  const hc = s.humidity>85?'#FF3D3D':s.humidity<30?'#FFB800':'#00D4FF';
+  setText('val-humidity',Math.round(s.humidity)); setBar('bar-humidity',s.humidity,hc);
+  const mp=soilPct(s.soilMoisture);
+  const mc=mp<25?'#FF3D3D':mp<40?'#FFB800':'#00D4FF';
+  setText('val-moisture',mp); setBar('bar-moisture',mp,mc);
+  setText('val-rain',parseFloat(s.rainfall).toFixed(1)); setBar('bar-rain',Math.min(100,(s.rainfall/300)*100),'#00D4FF');
+  const pc=(s.ph<5.0||s.ph>8.5)?'#FF3D3D':(s.ph<5.5||s.ph>7.8)?'#FFB800':'#00FF88';
+  setText('val-ph',parseFloat(s.ph).toFixed(1)); setBar('bar-ph',(s.ph/14)*100,pc);
+  setText('val-n',Math.round(s.N)); setBar('bar-n',Math.min(100,s.N),'#00FF88');
+  setText('val-p',Math.round(s.P)); setBar('bar-p',Math.min(100,s.P),'#00FF88');
+  setText('val-k',Math.round(s.K)); setBar('bar-k',Math.min(100,s.K),'#00D4FF');
+  // Push to chart
+  if(historicalChart){
+    const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const ds=historicalChart.data;
+    ds.labels.push(now);
+    ds.datasets[0].data.push(mp);
+    ds.datasets[1].data.push(parseFloat(s.temperature).toFixed(1));
+    ds.datasets[2].data.push(Math.round(s.humidity));
+    if(ds.labels.length>24){ds.labels.shift();ds.datasets.forEach(d=>d.data.shift());}
+    historicalChart.update('none');
+  }
+};
+
+// ── Prediction update ─────────────────────────────────────────
+const updatePredictions = p => {
+  if(!p) return;
+  // Disease
+  const d=p.disease||{};
+  if(d.label==='Not Available'){
+    setText('disease-status','N/A'); setText('disease-badge','NOT SUPPORTED');
+    setText('disease-rec',d.reason||'Crop not in disease model'); setText('disease-pct','--');
+  } else {
+    const risk=d.label==='At_Risk';
+    const hp=d.healthyProb!=null?Math.round(d.healthyProb*100):50;
+    const rp=d.atRiskProb!=null?Math.round(d.atRiskProb*100):50;
+    setText('disease-pct',`${hp}%`);
+    setText('disease-status',risk?'AT RISK ⚠':'HEALTHY ✓');
+    setText('disease-badge',risk?'HIGH RISK':'LOW RISK');
+    setText('disease-rec',risk?`Disease probability: ${rp}%. Consider fungicide.`:'No intervention needed. Crop is healthy.');
+    setText('disease-time',fmtTs(d.timestamp));
+    const se=document.getElementById('disease-status');
+    if(se) se.className=`font-bold mb-1 ${risk?'text-red-400':'text-ag-lime'}`;
+    const be=document.getElementById('disease-badge');
+    if(be) be.className=`px-2 py-0.5 rounded-md text-[10px] border ${risk?'bg-red-900/30 text-red-400 border-red-700/40':'bg-ag-lime/10 text-ag-lime border-ag-lime/20'}`;
+    setBar('disease-bar',rp,risk?'#FF3D3D':'#00FF88');
+    if(diseaseChart){
+      diseaseChart.data.datasets[0].data=[hp,rp];
+      diseaseChart.data.datasets[0].backgroundColor=[risk?'#FFB800':'#00FF88','#1a2a22'];
+      diseaseChart.update();
+    }
+    if(risk) addAlert('danger','Disease Risk Detected',`${rp}% probability — consider fungicide treatment.`);
+  }
+  // Irrigation
+  const ir=p.irrigation||{};
+  if(ir.label==='Not Available'){
+    setText('irrigation-status','N/A'); setText('irrigation-action',ir.reason||'Crop not in irrigation model');
+    setText('irrigation-conf-val','--'); setBar('irrigation-conf-bar',0);
+    document.getElementById('irrigation-icon').style.color='#4b5563';
+  } else {
+    const doIrr=ir.irrigate===1;
+    const cp=ir.confidence!=null?Math.round(ir.confidence*100):0;
+    setText('irrigation-status',doIrr?'IRRIGATE NOW':'NO IRRIGATION');
+    setText('irrigation-action',doIrr?'🚿 Activate irrigation system':'✅ Soil moisture is adequate');
+    setText('irrigation-conf-val',`${cp}%`);
+    setText('irrigation-time',fmtTs(ir.timestamp));
+    setBar('irrigation-conf-bar',cp,cp>80?'#00FF88':cp>60?'#FFB800':'#FF3D3D');
+    document.getElementById('irrigation-icon').style.color=doIrr?'#00D4FF':'#4b5563';
+    const se2=document.getElementById('irrigation-status');
+    if(se2) se2.className=`text-2xl font-display mb-1 ${doIrr?'text-ag-cyan animate-pulse':'text-white'}`;
+    if(doIrr) addAlert('warning','Irrigation Required',`Confidence: ${cp}% — activate water supply.`);
+  }
+  // Yield
+  const y=p.yield||{};
+  if(y.kgPerHa!=null){
+    const kg=Math.round(y.kgPerHa);
+    setText('yield-val',kg.toLocaleString());
+    setText('yield-hg',`${Math.round(y.hgPerHa||0).toLocaleString()} hg/ha`);
+    setText('yield-time',fmtTs(y.timestamp));
+    const avg=2500; const above=kg>avg;
+    const diff=Math.abs(Math.round(((kg-avg)/avg)*100));
+    const yb=document.getElementById('yield-badge');
+    if(yb){
+      yb.className=`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono ${above?'bg-ag-lime/10 text-ag-lime':'bg-orange-900/30 text-orange-400'}`;
+      yb.innerHTML=above
+        ?`<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5H7z"/></svg>+${diff}% vs Region Avg`
+        :`<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5H7z"/></svg>-${diff}% vs Region Avg`;
+    }
+  } else {
+    setText('yield-val','N/A'); setText('yield-hg',y.reason||'Crop not in yield model');
+  }
+  // Health badge
+  const diseaseRisk=p.disease?.label==='At_Risk';
+  const needsWater=p.irrigation?.irrigate===1;
+  let health='OPTIMAL',hc='#00FF88';
+  if(diseaseRisk&&needsWater){health='CRITICAL';hc='#FF3D3D';}
+  else if(diseaseRisk||needsWater){health='NEEDS ATTENTION';hc='#FFB800';}
+  const he=document.getElementById('health-status');
+  if(he){he.innerText=health;he.style.borderColor=hc;he.style.color=hc;he.style.background=`${hc}15`;}
+  if(health==='CRITICAL') addAlert('danger','Critical Farm Alert','Disease risk AND irrigation required simultaneously!');
+};
+
+// ── Config update ─────────────────────────────────────────────
+const updateConfig = cfg => {
+  if(!cfg) return;
+  setText('cfg-crop',cfg.cropType||'--');
+  setText('cfg-country',cfg.country||'--');
+  setText('cfg-days',cfg.cropDays?`${cfg.cropDays} days`:'--');
+  setText('cfg-pest',cfg.pesticides?`${cfg.pesticides} t`:'--');
+  setText('cfg-year',cfg.year||'--');
+  setText('hero-crop',(cfg.cropType||'CROP').toUpperCase());
+  setText('hero-country',(cfg.country||'--').toUpperCase());
+  setText('hero-days',cfg.cropDays||'--');
+  setText('hero-year',cfg.year||'--');
+  const pct=cfg.cropDays?Math.min(100,Math.round((cfg.cropDays/180)*100)):0;
+  setText('crop-age-pct',`${pct}%`);
+  const b=document.getElementById('crop-age-bar'); if(b) b.style.width=`${pct}%`;
+};
+
+// ── Status bar ────────────────────────────────────────────────
+const setStatus = (ok,msg) => {
+  const b=document.getElementById('fb-status-bar'); if(!b) return;
+  b.className=ok
+    ?'w-full text-center text-[10px] font-mono py-1 bg-green-900/30 text-green-400 border-b border-green-800/30'
+    :'w-full text-center text-[10px] font-mono py-1 bg-red-900/30 text-red-400 border-b border-red-800/30';
+  b.innerText=msg;
+};
+
+// ── Charts ────────────────────────────────────────────────────
+const initCharts = () => {
+  historicalChart = new Chart(document.getElementById('historicalChart').getContext('2d'),{
+    type:'line',
+    data:{ labels:[],
+      datasets:[
+        {label:'Moisture %',data:[],borderColor:'#00FF88',backgroundColor:'rgba(0,255,136,0.08)',fill:true,tension:0.4,borderWidth:2,pointRadius:0},
+        {label:'Temp °C',   data:[],borderColor:'#00D4FF',borderDash:[5,5],tension:0.4,borderWidth:1.5,pointRadius:0},
+        {label:'Humidity %',data:[],borderColor:'#FFB800',tension:0.4,borderWidth:1,pointRadius:0}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{display:false},x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'rgba(255,255,255,0.3)',font:{family:'JetBrains Mono',size:9}}}}}
+  });
+  diseaseChart = new Chart(document.getElementById('diseaseChart').getContext('2d'),{
+    type:'doughnut',
+    data:{datasets:[{data:[50,50],backgroundColor:['#00FF88','#1a2a22'],borderWidth:0,cutout:'85%'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{enabled:false}}}
+  });
+};
+
+// ── Demo mode ─────────────────────────────────────────────────
+const runDemo = () => {
+  const sc=DEMOS[demoIdx%DEMOS.length];
+  updateSensors(sc.sensor);
+  updatePredictions(sc.pred);
+  updateConfig(sc.cfg);
+  demoIdx++;
+};
+
+// ── Firebase connect ──────────────────────────────────────────
+const connectFirebase = () => {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    db.ref('.info/connected').on('value', snap => {
+      if(!isDemoMode) setStatus(snap.val()===true,
+        snap.val()===true
+          ? '🔥 FIREBASE CONNECTED — Live data streaming from /sensors/latest'
+          : '⚠️ Firebase disconnected — retrying...');
+    });
+    db.ref('/sensors/latest').on('value', snap => { if(!isDemoMode&&snap.val()) updateSensors(snap.val()); });
+    db.ref('/predictions').on('value',    snap => { if(!isDemoMode&&snap.val()) updatePredictions(snap.val()); });
+    db.ref('/config').on('value',         snap => { if(!isDemoMode&&snap.val()) updateConfig(snap.val()); });
+  } catch(e) {
+    setStatus(false,`Firebase error: ${e.message}`);
+    addAlert('danger','Firebase Error',e.message);
+  }
+};
+
+// ── Boot ──────────────────────────────────────────────────────
+window.onload = () => {
+  initCharts();
+  setInterval(() => { const e=document.getElementById('live-time'); if(e) e.innerText=new Date().toUTCString().split(' ')[4]+' UTC'; }, 1000);
+  document.getElementById('demo-toggle').addEventListener('change', e => {
+    isDemoMode = e.target.checked;
+    if(isDemoMode){
+      demoIdx=0; runDemo();
+      demoInterval=setInterval(runDemo,5000);
+      setStatus(false,'🎬 DEMO MODE — Simulated data. Toggle off for live Firebase.');
+      addAlert('info','Demo Mode Active','Cycling 4 scenarios every 5 seconds.');
+    } else {
+      clearInterval(demoInterval);
+      setStatus(true,'🔥 FIREBASE — Switched back to live data.');
+      addAlert('success','Live Mode','Now showing real Firebase data.');
+    }
+  });
+  // If config not filled, auto-start demo
+  if(firebaseConfig.apiKey==='YOUR_API_KEY'){
+    setStatus(false,'⚙️ Firebase not configured — Replace YOUR_API_KEY in the script below. Auto-started Demo Mode.');
+    addAlert('warning','Setup Required','Find YOUR_API_KEY in the script and replace with your Firebase config.');
+    document.getElementById('demo-toggle').checked=true;
+    isDemoMode=true; runDemo();
+    demoInterval=setInterval(runDemo,5000);
+  } else {
+    connectFirebase();
+  }
+};
+</script>
+</body>
+</html>

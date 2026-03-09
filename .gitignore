@@ -1,0 +1,21 @@
+backend/models/*.pkl
+
+# Firebase key — sensitive
+firebase_key.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
