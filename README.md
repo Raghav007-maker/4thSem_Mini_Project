@@ -52,3 +52,4 @@ Provide farmer alerts and recommendations
 Visualize farm performance metrics
 
 Ensure sustainable farming practices
+improves the quality work and remove heavy workload
