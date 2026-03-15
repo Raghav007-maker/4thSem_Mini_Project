@@ -41,8 +41,6 @@
   @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
   .alert-slide { animation:slideIn 0.4s ease forwards; }
-
-  /* Select dropdown dark style */
   select option { background:#0a0f0d; color:#F8FAFC; }
 </style>
 </head>
@@ -81,7 +79,7 @@
 
 <!-- ══ SETTINGS MODAL ════════════════════════════════════════ -->
 <div id="settings-modal" style="display:none" class="fixed inset-0 z-[998] bg-black/70 backdrop-blur-sm flex items-center justify-center">
-  <div class="glass-card p-8 rounded-2xl w-full max-w-md mx-4 border border-ag-cyan/20">
+  <div class="glass-card p-8 rounded-2xl w-full max-w-md mx-4 border border-ag-cyan/20" style="max-height:90vh;overflow-y:auto">
 
     <div class="flex justify-between items-center mb-6">
       <div>
@@ -91,24 +89,58 @@
       <button id="settings-close" class="text-white/40 hover:text-white text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-all">✕</button>
     </div>
 
-    <!-- Success message -->
     <div id="settings-success" class="hidden mb-4 p-3 rounded-lg bg-green-900/30 border border-green-700/40 text-green-400 text-xs font-mono text-center">
       ✅ Settings saved! Predictions will update on next sensor reading.
     </div>
 
-    <!-- Crop Type dropdown -->
+    <!-- ── FIX 2: Updated crop dropdown with all 23 crops ── -->
     <div class="mb-4">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Crop Type</label>
       <select id="cfg-input-crop"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all cursor-pointer">
-        <optgroup label="Works in ALL 3 Models">
-          <option value="rice">Rice</option>
+
+        <optgroup label="✅ All 3 Models (Disease + Irrigation + Yield)">
           <option value="maize">Maize</option>
-        </optgroup>
-        <optgroup label="Disease + Irrigation">
+          <option value="rice">Rice</option>
           <option value="coffee">Coffee</option>
         </optgroup>
-        <optgroup label="Disease Model Only">
+
+        <optgroup label="🌾 Disease + Yield only">
+          <option value="banana">Banana</option>
+          <option value="cassava">Cassava</option>
+          <option value="cotton">Cotton</option>
+          <option value="mango">Mango</option>
+          <option value="orange">Orange</option>
+          <option value="papaya">Papaya</option>
+          <option value="coconut">Coconut</option>
+          <option value="grapes">Grapes</option>
+          <option value="apple">Apple</option>
+          <option value="jute">Jute</option>
+        </optgroup>
+
+        <optgroup label="💧 Irrigation + Yield only">
+          <option value="wheat">Wheat</option>
+          <option value="potato">Potato</option>
+          <option value="sugarcane">Sugarcane</option>
+          <option value="groundnut">Groundnut</option>
+          <option value="sweet potato">Sweet Potato</option>
+        </optgroup>
+
+        <optgroup label="🌱 Yield only">
+          <option value="barley">Barley</option>
+          <option value="bean">Bean</option>
+          <option value="pea">Pea</option>
+          <option value="rapeseed">Rapeseed</option>
+          <option value="sorghum">Sorghum</option>
+          <option value="soybean">Soybean</option>
+          <option value="sugarbeet">Sugarbeet</option>
+          <option value="tomato">Tomato</option>
+          <option value="yam">Yam</option>
+          <option value="plantain">Plantain</option>
+          <option value="palm oil">Palm Oil</option>
+        </optgroup>
+
+        <optgroup label="🔬 Disease only">
           <option value="chickpea">Chickpea</option>
           <option value="kidneybeans">Kidney Beans</option>
           <option value="pigeonpeas">Pigeon Peas</option>
@@ -116,70 +148,44 @@
           <option value="mungbean">Mung Bean</option>
           <option value="blackgram">Black Gram</option>
           <option value="lentil">Lentil</option>
-          <option value="banana">Banana</option>
-          <option value="mango">Mango</option>
-          <option value="grapes">Grapes</option>
           <option value="watermelon">Watermelon</option>
           <option value="muskmelon">Muskmelon</option>
-          <option value="apple">Apple</option>
-          <option value="orange">Orange</option>
-          <option value="papaya">Papaya</option>
-          <option value="coconut">Coconut</option>
-          <option value="cotton">Cotton</option>
-          <option value="jute">Jute</option>
           <option value="pomegranate">Pomegranate</option>
         </optgroup>
-        <optgroup label="Irrigation + Yield Only">
-          <option value="wheat">Wheat</option>
-          <option value="potato">Potato</option>
-          <option value="sugarcane">Sugarcane</option>
-          <option value="groundnuts">Groundnuts</option>
-        </optgroup>
+
       </select>
-      <p class="text-[9px] text-white/20 font-mono mt-1">Rice and Maize work in all 3 models simultaneously</p>
+      <p class="text-[9px] text-white/20 font-mono mt-1">Maize and Rice work in all 3 models simultaneously</p>
     </div>
 
-    <!-- Country -->
     <div class="mb-4">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Country</label>
       <input id="cfg-input-country" type="text" placeholder="India"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all"/>
     </div>
-
-    <!-- Crop Days -->
     <div class="mb-4">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Days Since Planting</label>
       <input id="cfg-input-days" type="number" placeholder="45" min="0" max="365"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all"/>
     </div>
-
-    <!-- Pesticides -->
     <div class="mb-4">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Pesticides Used (tonnes)</label>
       <input id="cfg-input-pest" type="number" placeholder="500" min="0"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all"/>
     </div>
-
-    <!-- Year -->
     <div class="mb-6">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Year</label>
       <input id="cfg-input-year" type="number" placeholder="2024"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all"/>
     </div>
-
-    <!-- Save button -->
     <button id="settings-save"
       class="w-full bg-ag-cyan/10 border border-ag-cyan text-ag-cyan font-display text-sm tracking-widest py-3 rounded-lg hover:bg-ag-cyan hover:text-black transition-all duration-300">
       SAVE SETTINGS
     </button>
-
   </div>
 </div>
-<!-- ══ END SETTINGS MODAL ════════════════════════════════════ -->
 
 <div class="mesh-bg"></div>
 
-<!-- Firebase status bar -->
 <div id="fb-status-bar" class="w-full text-center text-[10px] font-mono py-1 bg-yellow-900/40 text-yellow-300 border-b border-yellow-800/40">
   Connecting to Firebase...
 </div>
@@ -208,11 +214,9 @@
         <span class="ms-3 text-xs font-mono text-white/60">DEMO</span>
       </label>
     </div>
-    <!-- SETTINGS BUTTON -->
     <button id="settings-btn" class="hidden text-xs font-mono text-white/40 hover:text-ag-cyan transition-colors border border-white/10 hover:border-ag-cyan/40 px-3 py-1 rounded-full">
       ⚙ SETTINGS
     </button>
-    <!-- LOGOUT BUTTON -->
     <button id="logout-btn" class="hidden text-xs font-mono text-white/40 hover:text-red-400 transition-colors border border-white/10 hover:border-red-400/40 px-3 py-1 rounded-full">
       LOGOUT
     </button>
@@ -459,6 +463,7 @@
 
 </main>
 
+<!-- ── FIX 3: Updated footer with correct R² ── -->
 <footer class="mt-12 border-t border-white/10 p-8 text-center">
   <div class="flex flex-wrap justify-center gap-8 mb-6">
     <div class="text-center">
@@ -471,7 +476,7 @@
     </div>
     <div class="text-center">
       <p class="text-[10px] text-white/40 uppercase mb-1">Yield Model</p>
-      <p class="text-xs text-white font-mono">RandomForest · R²=0.987</p>
+      <p class="text-xs text-white font-mono">RandomForest · R²=0.9607 · 23 Crops</p>
     </div>
   </div>
   <p class="text-[10px] text-white/20 font-mono">
@@ -613,7 +618,19 @@ const updatePredictions = p=>{
     setText('yield-val',kg.toLocaleString());
     setText('yield-hg',`${Math.round(y.hgPerHa||0).toLocaleString()} hg/ha`);
     setText('yield-time',fmtTs(y.timestamp));
-    const avg=2500; const above=kg>avg;
+
+    // ── FIX 1: Crop-specific regional averages (kg/ha) ──
+    const CROP_AVG = {
+      'maize':2500,'rice':2700,'wheat':3200,'potato':20000,
+      'tomato':35000,'sugarcane':70000,'banana':20000,'soybean':2800,
+      'barley':2500,'sorghum':1500,'cassava':12000,'groundnut':1800,
+      'cotton':1500,'coffee':800,'orange':15000,'sugarbeet':45000,
+      'rapeseed':1800,'yam':10000,'plantain':15000,'sweet potato':12000,
+      'pea':2000,'bean':1200,'palm oil':3500
+    };
+    const currentCrop = document.getElementById('cfg-crop').innerText.toLowerCase().trim();
+    const avg = CROP_AVG[currentCrop] || 2500;
+    const above=kg>avg;
     const diff=Math.abs(Math.round(((kg-avg)/avg)*100));
     const yb=document.getElementById('yield-badge');
     if(yb){
@@ -701,9 +718,7 @@ const connectFirebase = ()=>{
   db.ref('/config').on('value',         snap=>{ if(!isDemoMode&&snap.val()) updateConfig(snap.val()); });
 };
 
-// ════════════════════════════════════════════════════════════
 // AUTH
-// ════════════════════════════════════════════════════════════
 const loginScreen = document.getElementById('login-screen');
 const loginBtn    = document.getElementById('login-btn');
 const logoutBtn   = document.getElementById('logout-btn');
@@ -752,15 +767,12 @@ logoutBtn.addEventListener('click',()=>{
 
 auth.onAuthStateChanged(user=>{ if(user){ showDashboard(user); } else { showLogin(); } });
 
-// ════════════════════════════════════════════════════════════
-// SETTINGS PANEL
-// ════════════════════════════════════════════════════════════
+// SETTINGS
 const settingsModal   = document.getElementById('settings-modal');
 const settingsClose   = document.getElementById('settings-close');
 const settingsSave    = document.getElementById('settings-save');
 const settingsSuccess = document.getElementById('settings-success');
 
-// Open settings — pre-fill with current Firebase values
 settingsBtn.addEventListener('click',()=>{
   settingsModal.style.display='flex';
   settingsSuccess.classList.add('hidden');
@@ -774,26 +786,17 @@ settingsBtn.addEventListener('click',()=>{
   });
 });
 
-// Close modal
 settingsClose.addEventListener('click',()=>{ settingsModal.style.display='none'; });
+settingsModal.addEventListener('click', e=>{ if(e.target===settingsModal) settingsModal.style.display='none'; });
 
-// Close on backdrop click
-settingsModal.addEventListener('click', e=>{
-  if(e.target===settingsModal) settingsModal.style.display='none';
-});
-
-// Save to Firebase
 settingsSave.addEventListener('click',()=>{
   const cropType   = document.getElementById('cfg-input-crop').value;
   const country    = document.getElementById('cfg-input-country').value.trim();
   const cropDays   = parseInt(document.getElementById('cfg-input-days').value)||0;
   const pesticides = parseInt(document.getElementById('cfg-input-pest').value)||0;
   const year       = parseInt(document.getElementById('cfg-input-year').value)||2024;
-
   if(!country){ alert('Please enter a country.'); return; }
-
   settingsSave.innerText='SAVING...';
-
   firebase.database().ref('/config').set({
     cropType, country, cropDays, pesticides, year
   }).then(()=>{
@@ -806,7 +809,6 @@ settingsSave.addEventListener('click',()=>{
     addAlert('danger','Save Failed',err.message);
   });
 });
-// ════════════════════════════════════════════════════════════
 
 window.onload = ()=>{
   initCharts();

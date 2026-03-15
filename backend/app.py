@@ -80,16 +80,29 @@ IRRIGATION_CROPS = {
 }
 
 YIELD_CROPS = {
-    "maize"       : "Maize",
-    "wheat"       : "Wheat",
-    "rice"        : "Rice, paddy",
-    "sorghum"     : "Sorghum",
-    "potato"      : "Potatoes",
-    "sweet potato": "Sweet potatoes",
-    "cassava"     : "Cassava",
-    "soybean"     : "Soybeans",
-    "yam"         : "Yams",
-    "plantain"    : "Plantains"
+    "banana"        : "Bananas",
+    "barley"        : "Barley",
+    "bean"          : "Beans",
+    "cassava"       : "Cassava",
+    "coffee"        : "Coffee",
+    "cotton"        : "Cotton",
+    "groundnut"     : "Groundnuts",
+    "maize"         : "Maize",
+    "orange"        : "Oranges",
+    "palm oil"      : "Palm oil",
+    "pea"           : "Peas",
+    "plantain"      : "Plantains and others",
+    "potato"        : "Potatoes",
+    "rapeseed"      : "Rapeseed",
+    "rice"          : "Rice",
+    "sorghum"       : "Sorghum",
+    "soybean"       : "Soybeans",
+    "sugarbeet"     : "Sugarbeet",
+    "sugarcane"     : "Sugarcane",
+    "sweet potato"  : "Sweet potatoes",
+    "tomato"        : "Tomatoes",
+    "wheat"         : "Wheat",
+    "yam"           : "Yams"
 }
 
 app = Flask(__name__)
