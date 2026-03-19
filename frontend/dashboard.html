@@ -93,18 +93,15 @@
       ✅ Settings saved! Predictions will update on next sensor reading.
     </div>
 
-    <!-- ── FIX 2: Updated crop dropdown with all 23 crops ── -->
     <div class="mb-4">
       <label class="text-[10px] text-white/40 font-mono uppercase tracking-widest mb-2 block">Crop Type</label>
       <select id="cfg-input-crop"
         class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-ag-cyan transition-all cursor-pointer">
-
         <optgroup label="✅ All 3 Models (Disease + Irrigation + Yield)">
           <option value="maize">Maize</option>
           <option value="rice">Rice</option>
           <option value="coffee">Coffee</option>
         </optgroup>
-
         <optgroup label="🌾 Disease + Yield only">
           <option value="banana">Banana</option>
           <option value="cassava">Cassava</option>
@@ -117,7 +114,6 @@
           <option value="apple">Apple</option>
           <option value="jute">Jute</option>
         </optgroup>
-
         <optgroup label="💧 Irrigation + Yield only">
           <option value="wheat">Wheat</option>
           <option value="potato">Potato</option>
@@ -125,7 +121,6 @@
           <option value="groundnut">Groundnut</option>
           <option value="sweet potato">Sweet Potato</option>
         </optgroup>
-
         <optgroup label="🌱 Yield only">
           <option value="barley">Barley</option>
           <option value="bean">Bean</option>
@@ -139,7 +134,6 @@
           <option value="plantain">Plantain</option>
           <option value="palm oil">Palm Oil</option>
         </optgroup>
-
         <optgroup label="🔬 Disease only">
           <option value="chickpea">Chickpea</option>
           <option value="kidneybeans">Kidney Beans</option>
@@ -152,7 +146,6 @@
           <option value="muskmelon">Muskmelon</option>
           <option value="pomegranate">Pomegranate</option>
         </optgroup>
-
       </select>
       <p class="text-[9px] text-white/20 font-mono mt-1">Maize and Rice work in all 3 models simultaneously</p>
     </div>
@@ -463,7 +456,6 @@
 
 </main>
 
-<!-- ── FIX 3: Updated footer with correct R² ── -->
 <footer class="mt-12 border-t border-white/10 p-8 text-center">
   <div class="flex flex-wrap justify-center gap-8 mb-6">
     <div class="text-center">
@@ -484,15 +476,25 @@
   </p>
 </footer>
 
-<script>
-const firebaseConfig = {
-  apiKey        : "AIzaSyB5ZT5gACmP5txEgkF180gsnnYoDxQdHSE",
-  authDomain    : "smart-agriculture-ai-6e8c5.firebaseapp.com",
-  databaseURL   : "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com",
-  projectId     : "smart-agriculture-ai-6e8c5"
-};
+<!--
+  SECURITY NOTE:
+  Firebase config is loaded from firebase-config.js which is listed in .gitignore
+  Never hardcode API keys directly in this file.
+  See firebase-config.example.js for the required format.
+-->
+<script src="firebase-config.js"></script>
 
-firebase.initializeApp(firebaseConfig);
+<script>
+// firebase-config.js must define window.FIREBASE_CONFIG before this runs
+if (!window.FIREBASE_CONFIG) {
+  document.getElementById('fb-status-bar').innerText =
+    '❌ ERROR: firebase-config.js missing or not loaded. See firebase-config.example.js';
+  document.getElementById('fb-status-bar').className =
+    'w-full text-center text-[10px] font-mono py-1 bg-red-900/40 text-red-300 border-b border-red-800/40';
+  throw new Error('FIREBASE_CONFIG not found. Create firebase-config.js from the example file.');
+}
+
+firebase.initializeApp(window.FIREBASE_CONFIG);
 const auth = firebase.auth();
 
 const DEMOS = [
@@ -618,8 +620,6 @@ const updatePredictions = p=>{
     setText('yield-val',kg.toLocaleString());
     setText('yield-hg',`${Math.round(y.hgPerHa||0).toLocaleString()} hg/ha`);
     setText('yield-time',fmtTs(y.timestamp));
-
-    // ── FIX 1: Crop-specific regional averages (kg/ha) ──
     const CROP_AVG = {
       'maize':2500,'rice':2700,'wheat':3200,'potato':20000,
       'tomato':35000,'sugarcane':70000,'banana':20000,'soybean':2800,
@@ -628,8 +628,8 @@ const updatePredictions = p=>{
       'rapeseed':1800,'yam':10000,'plantain':15000,'sweet potato':12000,
       'pea':2000,'bean':1200,'palm oil':3500
     };
-    const currentCrop = document.getElementById('cfg-crop').innerText.toLowerCase().trim();
-    const avg = CROP_AVG[currentCrop] || 2500;
+    const currentCrop=document.getElementById('cfg-crop').innerText.toLowerCase().trim();
+    const avg=CROP_AVG[currentCrop]||2500;
     const above=kg>avg;
     const diff=Math.abs(Math.round(((kg-avg)/avg)*100));
     const yb=document.getElementById('yield-badge');
@@ -718,7 +718,6 @@ const connectFirebase = ()=>{
   db.ref('/config').on('value',         snap=>{ if(!isDemoMode&&snap.val()) updateConfig(snap.val()); });
 };
 
-// AUTH
 const loginScreen = document.getElementById('login-screen');
 const loginBtn    = document.getElementById('login-btn');
 const logoutBtn   = document.getElementById('logout-btn');
@@ -767,7 +766,6 @@ logoutBtn.addEventListener('click',()=>{
 
 auth.onAuthStateChanged(user=>{ if(user){ showDashboard(user); } else { showLogin(); } });
 
-// SETTINGS
 const settingsModal   = document.getElementById('settings-modal');
 const settingsClose   = document.getElementById('settings-close');
 const settingsSave    = document.getElementById('settings-save');
