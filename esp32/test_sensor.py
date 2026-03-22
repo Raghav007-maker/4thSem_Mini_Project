@@ -3,42 +3,65 @@ from firebase_admin import credentials, db
 import time
 from datetime import datetime
 
+# ── IMPORTANT: paste your Firebase UID here ──────────────────────────────────
+# Get it from browser console after login:
+#   firebase.auth().currentUser.uid
+USER_UID = "D0H5vS9PTfXENKobo8s54qAluf52"
+# ─────────────────────────────────────────────────────────────────────────────
+
 cred = credentials.Certificate("../backend/firebase-key.json")
 firebase_admin.initialize_app(cred, {
-    "databaseURL": "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com"   # change this
+    "databaseURL": "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com"
 })
 
-# Fake sensor data — edit these values to test different scenarios
+# ── Fake sensor data — edit these values to test different scenarios ──────────
 sensor_data = {
-    "temperature"  : 18,   # ← change this
-    "humidity"     : 70.0,   # ← change this
-    "soilMoisture" : 400,
-    "rainfall"     : 150.0,
-    "ph"           : 5.8,
-    "N": 60, "P": 55, "K": 80,
+    "temperature"  : 28.5,
+    "humidity"     : 75.0,
+    "soilMoisture" : 450,
+    "rainfall"     : 120.0,
+    "ph"           : 6.5,
+    "N"            : 60,
+    "P"            : 55,
+    "K"            : 80,
     "timestamp"    : datetime.utcnow().isoformat()
 }
 
-print("Writing sensor data to Firebase...")
-print(sensor_data)
+# ── Config — tells Flask which crop/country to use for predictions ────────────
+config_data = {
+    "cropType"   : "maize",
+    "country"    : "India",
+    "cropDays"   : 45,
+    "pesticides" : 500,
+    "year"       : 2024
+}
 
-db.reference("/sensors/latest").set(sensor_data)
+print(f"Writing data for user: {USER_UID[:8]}...")
+print(f"Sensor data: {sensor_data}")
+print(f"Config data: {config_data}")
 
-print("\nDone. Now check:")
-print("  1. Your Flask terminal — should show prediction logs")
-print("  2. Firebase console → /predictions — should have results")
+# Write config first so Flask has crop info when sensor triggers
+db.reference(f"/users/{USER_UID}/config").set(config_data)
+print("\nConfig written.")
 
-# Wait and then read back the predictions
+# Write sensor data — this triggers Flask listener → predictions
+db.reference(f"/users/{USER_UID}/sensors/latest").set(sensor_data)
+print("Sensor data written.")
+
 print("\nWaiting 5 seconds for Flask to process...")
 time.sleep(5)
 
-predictions = db.reference("/predictions").get()
+predictions = db.reference(f"/users/{USER_UID}/predictions").get()
 
 if predictions:
     print("\n=== PREDICTIONS FROM FIREBASE ===")
     for model, result in predictions.items():
         print(f"\n{model.upper()}:")
-        for k, v in result.items():
-            print(f"  {k}: {v}")
+        if isinstance(result, dict):
+            for k, v in result.items():
+                print(f"  {k}: {v}")
+        else:
+            print(f"  {result}")
 else:
-    print("\nNo predictions found yet — make sure app.py is running.")
+    print("\nNo predictions found yet.")
+    print("Make sure app.py is running and USER_UID is correct.")

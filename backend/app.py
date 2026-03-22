@@ -5,10 +5,12 @@ import numpy as np
 import pandas as pd
 import joblib
 from datetime import datetime
+from functools import wraps
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials, db, auth
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -106,17 +108,55 @@ YIELD_CROPS = {
 }
 
 app = Flask(__name__)
+CORS(app)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PREDICTION FUNCTIONS
+# AUTH DECORATOR
+# Every protected endpoint must receive Authorization: Bearer <firebase_id_token>
+# Flask verifies the token with Firebase Admin SDK — no secrets needed client side
+# ─────────────────────────────────────────────────────────────────────────────
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Missing or invalid Authorization header"}), 401
+        id_token = auth_header.split("Bearer ")[1]
+        try:
+            decoded = auth.verify_id_token(id_token)
+            request.uid = decoded["uid"]
+            request.user_email = decoded.get("email", "unknown")
+        except Exception as e:
+            log.warning("Token verification failed: %s", e)
+            return jsonify({"error": "Invalid or expired token"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USER-SCOPED FIREBASE HELPERS
+# All data is stored under /users/{uid}/ so each farmer is fully isolated
+# ─────────────────────────────────────────────────────────────────────────────
+
+def user_sensors_ref(uid):
+    return db.reference(f"/users/{uid}/sensors/latest")
+
+def user_predictions_ref(uid):
+    return db.reference(f"/users/{uid}/predictions")
+
+def user_config_ref(uid):
+    return db.reference(f"/users/{uid}/config")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PREDICTION FUNCTIONS  (unchanged logic, same as before)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def predict_disease(sensor, config):
     crop = config.get("cropType", "").lower().strip()
-
     if crop not in DISEASE_CROPS:
-        log.warning("Disease model — '%s' not supported, skipping.", crop)
         return {
             "label"      : "Not Available",
             "atRiskProb" : None,
@@ -125,9 +165,7 @@ def predict_disease(sensor, config):
             "supported"  : sorted(list(DISEASE_CROPS.keys())),
             "timestamp"  : datetime.utcnow().isoformat()
         }
-
     crop_encoded = disease_le.transform([DISEASE_CROPS[crop]])[0]
-
     X = pd.DataFrame([{
         "N"           : float(sensor["N"]),
         "P"           : float(sensor["P"]),
@@ -138,10 +176,8 @@ def predict_disease(sensor, config):
         "rainfall"    : float(sensor["rainfall"]),
         "crop_encoded": int(crop_encoded)
     }])
-
     prob  = disease_model.predict_proba(X)[0]
     label = disease_model.predict(X)[0]
-
     return {
         "label"      : "At_Risk" if label == 1 else "Healthy",
         "atRiskProb" : round(float(prob[1]), 4),
@@ -152,9 +188,7 @@ def predict_disease(sensor, config):
 
 def predict_irrigation(sensor, config):
     crop = config.get("cropType", "").lower().strip()
-
     if crop not in IRRIGATION_CROPS:
-        log.warning("Irrigation model — '%s' not supported, skipping.", crop)
         return {
             "irrigate"  : None,
             "label"     : "Not Available",
@@ -163,9 +197,7 @@ def predict_irrigation(sensor, config):
             "supported" : sorted(list(IRRIGATION_CROPS.keys())),
             "timestamp" : datetime.utcnow().isoformat()
         }
-
     crop_enc = irrigation_le.transform([IRRIGATION_CROPS[crop]])[0]
-
     X_raw = pd.DataFrame([{
         "CropType_enc": int(crop_enc),
         "CropDays"    : int(config.get("cropDays", 30)),
@@ -173,11 +205,9 @@ def predict_irrigation(sensor, config):
         "temperature" : float(sensor["temperature"]),
         "Humidity"    : float(sensor["humidity"])
     }])
-
     X_scaled = irrigation_scaler.transform(X_raw)
     pred     = irrigation_model.predict(X_scaled)[0]
     prob     = irrigation_model.predict_proba(X_scaled)[0]
-
     return {
         "irrigate"  : int(pred),
         "label"     : "Irrigate" if pred == 1 else "No Irrigation",
@@ -188,9 +218,7 @@ def predict_irrigation(sensor, config):
 
 def predict_yield(sensor, config):
     crop = config.get("cropType", "").lower().strip()
-
     if crop not in YIELD_CROPS:
-        log.warning("Yield model — '%s' not supported, skipping.", crop)
         return {
             "hgPerHa"  : None,
             "kgPerHa"  : None,
@@ -198,9 +226,6 @@ def predict_yield(sensor, config):
             "supported": sorted(list(YIELD_CROPS.keys())),
             "timestamp": datetime.utcnow().isoformat()
         }
-
-    # ── FIX 2: use raw column name 'pesticides_tonnes' ──
-    # The pipeline handles log transformation internally
     X = pd.DataFrame([{
         "Area"                         : config.get("country", "India"),
         "Item"                         : YIELD_CROPS[crop],
@@ -209,9 +234,7 @@ def predict_yield(sensor, config):
         "pesticides_tonnes"            : float(config.get("pesticides", 100)),
         "avg_temp"                     : float(sensor["temperature"])
     }])
-
     hg_per_ha = float(yield_model.predict(X)[0])
-
     return {
         "hgPerHa"  : round(hg_per_ha, 2),
         "kgPerHa"  : round(hg_per_ha / 10, 2),
@@ -222,7 +245,6 @@ def predict_yield(sensor, config):
 def run_all_predictions(sensor, config):
     results = {}
     crop    = config.get("cropType", "unknown").lower()
-
     log.info("Running predictions for crop: '%s'", crop)
 
     try:
@@ -246,44 +268,53 @@ def run_all_predictions(sensor, config):
         log.error("Yield prediction error: %s", e)
         results["yield"] = {"label": "Error", "error": str(e)}
 
-    log.info(
-        "Complete — disease:%s  irrigation:%s  yield:%s",
-        results.get("disease", {}).get("label", "N/A"),
-        results.get("irrigation", {}).get("label", "N/A"),
-        f"{results.get('yield', {}).get('kgPerHa', 'N/A')} kg/ha"
-    )
-
     return results
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FIREBASE LISTENER
+# FIREBASE LISTENER  — now watches ALL users under /users/
+# When any user's ESP32 pushes sensor data, predictions run for that user only
 # ─────────────────────────────────────────────────────────────────────────────
 
-def on_sensor_update(event):
-    if event.data is None:
-        return
-
-    log.info("New sensor data received from Firebase.")
-
-    try:
-        sensor = event.data
-        config = db.reference("/config").get() or {}
-
-        if not config:
-            log.warning("No config found at /config — skipping prediction.")
+def on_user_sensor_update(uid):
+    def handler(event):
+        if event.data is None:
             return
+        log.info("Sensor update for uid=%s", uid)
+        try:
+            sensor = event.data
+            config = user_config_ref(uid).get() or {}
+            if not config:
+                log.warning("No config for uid=%s — skipping prediction.", uid)
+                return
+            predictions = run_all_predictions(sensor, config)
+            user_predictions_ref(uid).set(predictions)
+            log.info("Predictions written for uid=%s", uid)
+        except Exception as e:
+            log.error("Listener error for uid=%s: %s", uid, e)
+    return handler
 
-        predictions = run_all_predictions(sensor, config)
-        db.reference("/predictions").set(predictions)
-        log.info("Predictions written to /predictions")
 
-    except Exception as e:
-        log.error("Listener error: %s", e)
+def register_listener_for_user(uid):
+    user_sensors_ref(uid).listen(on_user_sensor_update(uid))
+    log.info("Firebase listener registered for uid=%s", uid)
 
 
 def start_firebase_listener():
-    db.reference("/sensors/latest").listen(on_sensor_update)
+    """
+    Watch /users/ for any new child (new user registration).
+    When a user node appears, attach a sensor listener for that user.
+    """
+    def on_new_user(event):
+        if event.data is None:
+            return
+        # event.path is like '/abc123uid'
+        uid = event.path.strip("/").split("/")[0]
+        if uid:
+            register_listener_for_user(uid)
+
+    db.reference("/users").listen(on_new_user)
+    log.info("Master listener started — watching /users/ for new farmers.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -291,7 +322,15 @@ def start_firebase_listener():
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/predict", methods=["POST"])
+@require_auth
 def predict_endpoint():
+    """
+    POST /predict
+    Header: Authorization: Bearer <firebase_id_token>
+    Body:   { "sensor": {...}, "config": {...} }
+
+    Runs predictions and writes results to /users/{uid}/predictions
+    """
     body   = request.get_json(force=True)
     sensor = body.get("sensor", {})
     config = body.get("config", {})
@@ -300,29 +339,40 @@ def predict_endpoint():
         return jsonify({"error": "Missing sensor or config in request body"}), 400
 
     results = run_all_predictions(sensor, config)
-    db.reference("/predictions").set(results)
+    user_predictions_ref(request.uid).set(results)
 
+    log.info("Manual predict called by %s", request.user_email)
     return jsonify(results), 200
 
 
 @app.route("/predict/now", methods=["GET"])
+@require_auth
 def predict_now():
-    sensor = db.reference("/sensors/latest").get()
-    config = db.reference("/config").get()
+    """
+    GET /predict/now
+    Header: Authorization: Bearer <firebase_id_token>
+
+    Reads sensor data and config from /users/{uid}/... and runs predictions
+    """
+    uid    = request.uid
+    sensor = user_sensors_ref(uid).get()
+    config = user_config_ref(uid).get()
 
     if not sensor:
-        return jsonify({"error": "No sensor data at /sensors/latest"}), 404
+        return jsonify({"error": f"No sensor data at /users/{uid}/sensors/latest"}), 404
     if not config:
-        return jsonify({"error": "No config at /config"}), 404
+        return jsonify({"error": f"No config at /users/{uid}/config"}), 404
 
     results = run_all_predictions(sensor, config)
-    db.reference("/predictions").set(results)
+    user_predictions_ref(uid).set(results)
 
+    log.info("predict/now called by %s", request.user_email)
     return jsonify(results), 200
 
 
 @app.route("/crops", methods=["GET"])
 def supported_crops():
+    """Public endpoint — no auth needed, just lists supported crops"""
     return jsonify({
         "disease_model"   : sorted(list(DISEASE_CROPS.keys())),
         "irrigation_model": sorted(list(IRRIGATION_CROPS.keys())),
@@ -335,10 +385,32 @@ def supported_crops():
 
 @app.route("/status", methods=["GET"])
 def status():
+    """Public endpoint — health check"""
     return jsonify({
         "status" : "running",
         "models" : ["disease", "irrigation", "yield"],
-        "firebase": db.reference("/").get(shallow=True) is not None
+        "firebase": db.reference("/").get(shallow=True) is not None,
+        "auth"   : "Firebase ID Token required on /predict endpoints"
+    }), 200
+
+
+@app.route("/register-listener", methods=["POST"])
+@require_auth
+def register_listener():
+    """
+    POST /register-listener
+    Header: Authorization: Bearer <firebase_id_token>
+
+    Call this once after login to register the sensor listener for this user.
+    The ESP32 should write to /users/{uid}/sensors/latest
+    """
+    uid = request.uid
+    register_listener_for_user(uid)
+    return jsonify({
+        "message"     : f"Listener registered for your account.",
+        "sensor_path" : f"/users/{uid}/sensors/latest",
+        "config_path" : f"/users/{uid}/config",
+        "predict_path": f"/users/{uid}/predictions"
     }), 200
 
 
@@ -349,6 +421,5 @@ def status():
 if __name__ == "__main__":
     listener_thread = threading.Thread(target=start_firebase_listener, daemon=True)
     listener_thread.start()
-    log.info("Firebase listener started — watching /sensors/latest")
 
     app.run(host="0.0.0.0", port=5000, debug=False)
