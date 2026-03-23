@@ -31,8 +31,11 @@ BASE = os.path.dirname(__file__)
 
 log.info("Loading models...")
 
-disease_model     = joblib.load(os.path.join(BASE, "models", "crop_disease_model.pkl"))
-disease_le        = joblib.load(os.path.join(BASE, "models", "disease_label_encoder.pkl"))
+disease_model = joblib.load(os.path.join(BASE, "models", "crop_disease_model.pkl"))
+disease_le    = joblib.load(os.path.join(BASE, "models", "disease_label_encoder.pkl"))
+disease_name_model = joblib.load(os.path.join(BASE, "models", "crop_disease_name_model.pkl"))
+disease_name_le    = joblib.load(os.path.join(BASE, "models", "disease_name_label_encoder.pkl"))
+crop_name_le       = joblib.load(os.path.join(BASE, "models", "crop_name_encoder.pkl"))
 
 irrigation_model  = joblib.load(os.path.join(BASE, "models", "irrigation_model.pkl"))
 irrigation_scaler = joblib.load(os.path.join(BASE, "models", "scaler.pkl"))
@@ -156,6 +159,7 @@ def user_config_ref(uid):
 
 def predict_disease(sensor, config):
     crop = config.get("cropType", "").lower().strip()
+
     if crop not in DISEASE_CROPS:
         return {
             "label"      : "Not Available",
@@ -165,7 +169,9 @@ def predict_disease(sensor, config):
             "supported"  : sorted(list(DISEASE_CROPS.keys())),
             "timestamp"  : datetime.utcnow().isoformat()
         }
-    crop_encoded = disease_le.transform([DISEASE_CROPS[crop]])[0]
+
+    crop_encoded = crop_name_le.transform([DISEASE_CROPS[crop]])[0]
+
     X = pd.DataFrame([{
         "N"           : float(sensor["N"]),
         "P"           : float(sensor["P"]),
@@ -176,15 +182,29 @@ def predict_disease(sensor, config):
         "rainfall"    : float(sensor["rainfall"]),
         "crop_encoded": int(crop_encoded)
     }])
+
     prob  = disease_model.predict_proba(X)[0]
     label = disease_model.predict(X)[0]
-    return {
+    result = {
         "label"      : "At_Risk" if label == 1 else "Healthy",
         "atRiskProb" : round(float(prob[1]), 4),
         "healthyProb": round(float(prob[0]), 4),
+        "diseaseName": None,
         "timestamp"  : datetime.utcnow().isoformat()
     }
 
+    # If at risk — predict the specific disease name
+    if label == 1:
+        try:
+            dn_raw = disease_name_le.inverse_transform(
+                [disease_name_model.predict(X)[0]]
+            )[0]
+            result["diseaseName"] = dn_raw.split("__", 1)[-1]
+        except Exception as e:
+            log.warning("Disease name prediction failed: %s", e)
+            result["diseaseName"] = "Unknown"
+
+    return result
 
 def predict_irrigation(sensor, config):
     crop = config.get("cropType", "").lower().strip()
@@ -197,6 +217,7 @@ def predict_irrigation(sensor, config):
             "supported" : sorted(list(IRRIGATION_CROPS.keys())),
             "timestamp" : datetime.utcnow().isoformat()
         }
+
     crop_enc = irrigation_le.transform([IRRIGATION_CROPS[crop]])[0]
     X_raw = pd.DataFrame([{
         "CropType_enc": int(crop_enc),
@@ -208,13 +229,31 @@ def predict_irrigation(sensor, config):
     X_scaled = irrigation_scaler.transform(X_raw)
     pred     = irrigation_model.predict(X_scaled)[0]
     prob     = irrigation_model.predict_proba(X_scaled)[0]
+
+    # Rule override — soil moisture dominates over model bias
+    soil = float(sensor["soilMoisture"])
+    if soil >= 550:
+        return {
+            "irrigate"  : 1,
+            "label"     : "Irrigate",
+            "confidence": round(float(max(prob)), 4),
+            "timestamp" : datetime.utcnow().isoformat()
+        }
+    elif soil <= 400:
+        return {
+            "irrigate"  : 0,
+            "label"     : "No Irrigation",
+            "confidence": round(float(max(prob)), 4),
+            "timestamp" : datetime.utcnow().isoformat()
+        }
+
+    # Borderline zone (400-550) — trust the model
     return {
         "irrigate"  : int(pred),
         "label"     : "Irrigate" if pred == 1 else "No Irrigation",
         "confidence": round(float(max(prob)), 4),
         "timestamp" : datetime.utcnow().isoformat()
     }
-
 
 def predict_yield(sensor, config):
     crop = config.get("cropType", "").lower().strip()
@@ -230,7 +269,7 @@ def predict_yield(sensor, config):
         "Area"                         : config.get("country", "India"),
         "Item"                         : YIELD_CROPS[crop],
         "Year"                         : int(config.get("year", datetime.utcnow().year)),
-        "average_rain_fall_mm_per_year": float(sensor["rainfall"]),
+        "average_rain_fall_mm_per_year": max(1.0, float(sensor["rainfall"])),
         "pesticides_tonnes"            : float(config.get("pesticides", 100)),
         "avg_temp"                     : float(sensor["temperature"])
     }])
