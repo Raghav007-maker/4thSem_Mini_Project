@@ -437,11 +437,11 @@ All endpoints except `/crops` and `/status` require `Authorization: Bearer <fire
 
 | Name | GitHub | Contribution |
 |---|---|---|
-| Raghav Bansal | [@Raghav007-maker](https://github.com/Raghav007-maker) | Backend, ML models, Firebase, Security |
+| Raghav Bansal | [@Raghav007-maker](https://github.com/Raghav007-maker) | Backend, ML models, Firebase |
 
 | Priya Shukla | [@PriyaShukla3694](https://github.com/PriyaShukla3694) | Frontend dashboard, UI/UX |
 
-| Anuj Kumar | [@aksaxena9412-ctrl] |Esp32 , Sensor codes , hardware integration  |
+| Anuj Kumar | [@aksaxena9412-ctrl] |Esp32 , Sensor codes , hardware integration , Security  |
 
 **GitHub:** [https://github.com/Raghav007-maker/4thSem_Mini_Project](https://github.com/Raghav007-maker/4thSem_Mini_Project)
 
