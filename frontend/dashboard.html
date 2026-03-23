@@ -1299,4 +1299,1336 @@
     .save-btn:hover {
       background: var(--green2)
     }
-    
+    /* LAYOUT */
+    .content {
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem
+    }
+
+    /* SHIMMER */
+    .shim {
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.02) 75%);
+      background-size: 200%;
+      animation: shim 1.8s infinite
+    }
+
+    @keyframes shim {
+      0% {
+        background-position: 200%
+      }
+
+      100% {
+        background-position: -200%
+      }
+    }
+
+    /* DEMO toggle */
+    .demo-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer
+    }
+
+    .demo-switch {
+      width: 28px;
+      height: 16px;
+      background: #1a261a;
+      border-radius: 99px;
+      position: relative;
+      transition: background 0.3s
+    }
+
+    .demo-switch.on {
+      background: var(--green3)
+    }
+
+    .demo-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s
+    }
+
+    .demo-switch.on .demo-knob {
+      transform: translateX(12px)
+    }
+
+    .demo-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-weight: 500
+    }
+
+    @media(max-width:900px) {
+      .bottom-grid {
+        grid-template-columns: 1fr
+      }
+
+      .auth-left {
+        display: none
+      }
+
+      #auth-wrap {
+        justify-content: center;
+        padding: 1rem
+      }
+
+      .hero-badge {
+        display: none
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ══ SPLASH ═══════════════════════════ -->
+  <div id="splash">
+    <div class="sp-dots" id="sp-dots"></div>
+    <div class="sp-logo">KISAAN<span style="color:#22c55e">AI</span></div>
+    <div class="sp-sub">Precision Farming Intelligence</div>
+    <div class="sp-track">
+      <div class="sp-fill"></div>
+    </div>
+  </div>
+
+  <!-- ══ AUTH ═════════════════════════════ -->
+  <div id="auth-wrap">
+    <div id="auth-bg"></div>
+    <div class="auth-left">
+      <h1>Smart<br>Farming<br><span>Intelligence</span></h1>
+      <p>AI-powered crop monitoring with real-time IoT sensors, disease detection, and yield forecasting.</p>
+    </div>
+    <div class="auth-card">
+      <div class="auth-logo">🌾 KISAAN AI</div>
+      <div class="auth-tabs">
+        <button class="auth-tab on" id="tab-login" onclick="switchTab('login')">Login</button>
+        <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Register</button>
+      </div>
+      <div class="auth-msg err" id="auth-err"></div>
+      <div class="auth-msg ok" id="auth-ok"></div>
+
+      <div id="form-login">
+        <label class="auth-label">Email</label>
+        <input id="l-email" type="email" class="auth-input" placeholder="farmer@example.com" />
+        <label class="auth-label">Password</label>
+        <input id="l-pass" type="password" class="auth-input" placeholder="••••••••" />
+        <button class="auth-btn" id="login-btn" onclick="doLogin()">Sign In to Dashboard</button>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin:0.85rem 0">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-size:0.65rem;color:var(--muted)">OR</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+        <button onclick="doGoogleLogin()"
+          style="width:100%;padding:0.8rem;background:transparent;border:1px solid var(--border);border-radius:0.6rem;color:var(--text);font-size:0.82rem;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.6rem;transition:all 0.2s"
+          onmouseover="this.style.borderColor='#4ade80'" onmouseout="this.style.borderColor='var(--border)'">
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path fill="#4285F4"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+            <path fill="#EA4335"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+
+      <div id="form-register" style="display:none">
+        <label class="auth-label">Full Name</label>
+        <input id="r-name" type="text" class="auth-input" placeholder="John Farmer" />
+        <label class="auth-label">Email</label>
+        <input id="r-email" type="email" class="auth-input" placeholder="farmer@example.com" />
+        <label class="auth-label">Password</label>
+        <input id="r-pass" type="password" class="auth-input" placeholder="Min 6 characters" />
+        <button class="auth-btn sec" id="reg-btn" onclick="doRegister()">Create Account</button>
+      </div>
+      <p style="text-align:center;font-size:0.6rem;color:var(--muted2);margin-top:1.25rem">AI Smart Agriculture · 4th
+        Sem Mini Project</p>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS MODAL ════════════════════ -->
+  <div class="modal-bg" id="settings-modal">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem">
+        <div>
+          <div class="modal-title">Farm Configuration</div>
+          <div class="modal-sub">Settings saved to your private account</div>
+        </div>
+        <button onclick="document.getElementById('settings-modal').style.display='none'"
+          style="background:var(--card2);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1rem">✕</button>
+      </div>
+      <div id="modal-ok" style="display:none" class="auth-msg ok">✅ Settings saved!</div>
+      <div class="form-group">
+        <label class="form-label">Crop Type</label>
+        <select id="s-crop" class="form-input">
+          <optgroup label="✅ All 3 Models">
+            <option value="maize">Maize</option>
+            <option value="rice">Rice</option>
+            <option value="coffee">Coffee</option>
+          </optgroup>
+          <optgroup label="🌾 Disease + Yield">
+            <option value="banana">Banana</option>
+            <option value="cassava">Cassava</option>
+            <option value="cotton">Cotton</option>
+            <option value="mango">Mango</option>
+            <option value="orange">Orange</option>
+            <option value="papaya">Papaya</option>
+            <option value="coconut">Coconut</option>
+            <option value="grapes">Grapes</option>
+            <option value="apple">Apple</option>
+            <option value="jute">Jute</option>
+          </optgroup>
+          <optgroup label="💧 Irrigation + Yield">
+            <option value="wheat">Wheat</option>
+            <option value="potato">Potato</option>
+            <option value="sugarcane">Sugarcane</option>
+            <option value="groundnut">Groundnut</option>
+            <option value="sweet potato">Sweet Potato</option>
+          </optgroup>
+          <optgroup label="🌱 Yield only">
+            <option value="barley">Barley</option>
+            <option value="bean">Bean</option>
+            <option value="pea">Pea</option>
+            <option value="rapeseed">Rapeseed</option>
+            <option value="sorghum">Sorghum</option>
+            <option value="soybean">Soybean</option>
+            <option value="sugarbeet">Sugarbeet</option>
+            <option value="tomato">Tomato</option>
+            <option value="yam">Yam</option>
+          </optgroup>
+          <optgroup label="🔬 Disease only">
+            <option value="chickpea">Chickpea</option>
+            <option value="kidneybeans">Kidney Beans</option>
+            <option value="pigeonpeas">Pigeon Peas</option>
+            <option value="mothbeans">Moth Beans</option>
+            <option value="mungbean">Mung Bean</option>
+            <option value="blackgram">Black Gram</option>
+            <option value="lentil">Lentil</option>
+            <option value="watermelon">Watermelon</option>
+            <option value="muskmelon">Muskmelon</option>
+            <option value="pomegranate">Pomegranate</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">Country</label><input id="s-country" type="text" class="form-input"
+            placeholder="India" /></div>
+        <div><label class="form-label">Year</label><input id="s-year" type="number" class="form-input"
+            placeholder="2024" /></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">Crop Days</label><input id="s-days" type="number" class="form-input"
+            placeholder="45" /></div>
+        <div><label class="form-label">Pesticides (t)</label><input id="s-pest" type="number" class="form-input"
+            placeholder="500" /></div>
+      </div>
+      <button class="save-btn" onclick="saveSettings()">Save Configuration</button>
+    </div>
+  </div>
+
+  <!-- ══ MAIN APP ══════════════════════════ -->
+  <div id="app">
+
+    <!-- NAV -->
+    <nav class="nav">
+      <div class="nav-logo">🌾 KISAAN AI</div>
+      <div class="nav-right">
+        <div style="font-size:0.7rem;color:var(--muted);font-family:monospace" id="live-clock">--:--:-- UTC</div>
+        <div class="demo-pill" onclick="toggleDemo()">
+          <div class="demo-switch" id="demo-sw">
+            <div class="demo-knob"></div>
+          </div>
+          <span class="demo-label">DEMO</span>
+        </div>
+
+        <!-- Bell notification -->
+        <div class="notif-wrap" id="notif-wrap">
+          <div class="notif-btn" onclick="toggleNotifPanel()" title="Notifications">
+            🔔
+            <div class="notif-badge" id="notif-badge"></div>
+          </div>
+          <div class="notif-panel" id="notif-panel">
+            <div class="notif-header">
+              <span class="notif-title">Notifications</span>
+              <span class="notif-clear" onclick="clearNotifications()">Clear all</span>
+            </div>
+            <div class="notif-list" id="notif-list">
+              <div class="notif-empty">No notifications yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile dropdown -->
+        <div class="profile-wrap" id="profile-wrap">
+          <div class="profile-btn" onclick="toggleProfileDropdown()">
+            <div class="profile-avatar" id="nav-avatar-wrap">
+              <span id="nav-avatar">?</span>
+            </div>
+            <span class="profile-initials" id="nav-initials">--</span>
+            <span class="profile-chevron" id="profile-chevron">▾</span>
+          </div>
+          <div class="profile-dropdown" id="profile-dropdown">
+            <div class="pd-header">
+              <div class="pd-avatar-lg" id="pd-avatar-lg"><span id="pd-avatar-initial">?</span></div>
+              <div style="overflow:hidden">
+                <div class="pd-name" id="pd-name">--</div>
+                <div class="pd-email" id="pd-email">--</div>
+              </div>
+            </div>
+            <button class="pd-item" onclick="openProfileModal()"><span class="pd-icon">👤</span> Edit Profile</button>
+            <button class="pd-item" onclick="closeDropdowns();openSettings()"><span class="pd-icon">⚙️</span>
+              Settings</button>
+            <div class="pd-divider"></div>
+            <button class="pd-item danger" onclick="firebase.auth().signOut()"><span class="pd-icon">🚪</span>
+              Logout</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- PROFILE MODAL -->
+    <div class="profile-modal-bg" id="profile-modal-bg" onclick="if(event.target===this)this.style.display='none'">
+      <div class="profile-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:1.1rem;font-weight:600">Edit Profile</div>
+          <button onclick="document.getElementById('profile-modal-bg').style.display='none'"
+            style="background:var(--card2);border:1px solid var(--border);color:var(--text);width:30px;height:30px;border-radius:50%;cursor:pointer">✕</button>
+        </div>
+        <div class="pm-avatar-wrap">
+          <div class="pm-avatar" id="pm-avatar"><span id="pm-initial">?</span></div>
+          <label class="pm-upload" title="Upload photo">
+            📷
+            <input type="file" accept="image/*" style="display:none" id="photo-input" onchange="uploadPhoto(this)" />
+          </label>
+        </div>
+        <div style="margin-bottom:0.85rem">
+          <label class="form-label">Display Name</label>
+          <input id="pm-name" type="text" class="form-input" placeholder="Your name" />
+        </div>
+        <div style="margin-bottom:1.25rem">
+          <label class="form-label">Email</label>
+          <input id="pm-email" type="text" class="form-input" readonly style="opacity:0.5;cursor:not-allowed" />
+        </div>
+        <div id="pm-msg" style="display:none;margin-bottom:0.75rem" class="auth-msg ok"></div>
+        <button class="save-btn" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar" id="status-bar">
+      <div class="status-dot"></div>
+      <span id="status-text">Connecting...</span>
+      <span style="margin-left:auto;color:var(--muted)" id="status-time"></span>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-img" id="hero-img"></div>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-eyebrow">Active Field · AI Monitoring</div>
+        <div class="hero-crop" id="hero-crop">LOADING</div>
+        <div class="hero-sub">
+          AI precision farming dashboard
+          <span>·</span>
+          Days: <span id="hero-days">--</span>
+          <span>·</span>
+          <span id="hero-country">--</span>
+          <span>·</span>
+          Rainfall: <span id="hero-rain">-- mm/yr</span>
+        </div>
+        <button class="hero-cta" onclick="openSettings()">Configure Farm →</button>
+      </div>
+      <div class="hero-badge">
+        <div class="hero-badge-label">System Health</div>
+        <div class="hero-badge-val" id="hero-health">OPTIMAL</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- SENSOR SECTION -->
+      <div class="sec-label">
+        <div class="sec-dot"></div>Smart Irrigation & Sensors
+      </div>
+      <div style="border-radius:1rem;overflow:hidden;border:1px solid var(--border);overflow-x:auto">
+        <div class="sensor-grid" style="min-width:900px">
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Air Temperature</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(56,189,248,0.1)">🌡️</div>
+            </div>
+            <div class="sc-val shim" id="v-temp">--</div>
+            <div class="sc-unit">°C</div>
+            <canvas class="sc-chart" id="mc-temp"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Humidity</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(74,222,128,0.1)">💧</div>
+            </div>
+            <div class="sc-val shim" id="v-hum">--</div>
+            <div class="sc-unit">%</div>
+            <canvas class="sc-chart" id="mc-hum"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Soil Moisture</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(74,222,128,0.1)">🌱</div>
+            </div>
+            <div class="sc-val shim" id="v-moist">--</div>
+            <div class="sc-unit">%</div>
+            <canvas class="sc-chart" id="mc-moist"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Rainfall</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(56,189,248,0.1)">🌧️</div>
+            </div>
+            <div class="sc-val shim" id="v-rain">--</div>
+            <div class="sc-unit">mm/yr</div>
+            <canvas class="sc-chart" id="mc-rain"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">pH Level</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(234,179,8,0.1)">⚗️</div>
+            </div>
+            <div class="sc-val shim" id="v-ph">--</div>
+            <div class="sc-unit">pH</div>
+            <canvas class="sc-chart" id="mc-ph"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Nitrogen</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(74,222,128,0.08)">🧪</div>
+            </div>
+            <div class="sc-val shim" id="v-n" style="color:var(--green)">--</div>
+            <div class="sc-unit">mg/kg</div>
+            <canvas class="sc-chart" id="mc-n"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Phosphorus</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(74,222,128,0.08)">🧪</div>
+            </div>
+            <div class="sc-val shim" id="v-p" style="color:var(--green)">--</div>
+            <div class="sc-unit">mg/kg</div>
+            <canvas class="sc-chart" id="mc-p"></canvas>
+          </div>
+
+          <div class="sensor-card">
+            <div class="sc-top">
+              <div>
+                <div class="sc-label">Potassium</div>
+              </div>
+              <div class="sc-icon" style="background:rgba(74,222,128,0.08)">🧪</div>
+            </div>
+            <div class="sc-val shim" id="v-k" style="color:var(--green)">--</div>
+            <div class="sc-unit">mg/kg</div>
+            <canvas class="sc-chart" id="mc-k"></canvas>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- AI PREDICTIONS -->
+      <div class="sec-label">
+        <div class="sec-dot"></div>AI Predictions
+      </div>
+      <div class="ai-grid">
+
+        <!-- Disease -->
+        <div class="ai-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+            <div class="ai-card-label" style="margin-bottom:0">Disease Risk Assessment</div>
+            <span class="ai-badge badge-green" id="disease-badge">LOW RISK</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:1.25rem">
+            <div style="position:relative;flex-shrink:0">
+              <canvas id="diseaseChart" width="80" height="80"></canvas>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+                <span id="disease-pct"
+                  style="font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700;color:white">--%</span>
+              </div>
+            </div>
+            <div>
+              <div id="disease-status"
+                style="font-size:1.1rem;font-weight:700;color:var(--green);margin-bottom:0.35rem">HEALTHY ✓</div>
+              <div id="disease-rec" style="font-size:0.72rem;color:var(--muted);line-height:1.4">Awaiting sensor data...
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:1rem;height:3px;background:#1a261a;border-radius:99px;overflow:hidden">
+            <div id="disease-bar"
+              style="height:100%;width:0%;background:var(--green);border-radius:99px;transition:width 0.8s"></div>
+          </div>
+        </div>
+
+        <!-- Irrigation -->
+        <div class="ai-card" style="text-align:center">
+          <div class="ai-card-label">Smart Irrigation</div>
+          <div id="irr-icon" style="font-size:3.5rem;margin:0.5rem 0;opacity:0.3;transition:all 0.5s">💧</div>
+          <div id="irr-status"
+            style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:white;margin-bottom:0.25rem">
+            LOADING...</div>
+          <div id="irr-action" style="font-size:0.72rem;color:var(--muted);margin-bottom:1.25rem">Awaiting prediction...
+          </div>
+          <div
+            style="display:flex;align-items:center;gap:0.75rem;background:#0d120d;border-radius:99px;padding:0.5rem 1rem">
+            <span style="font-size:0.6rem;color:var(--muted);font-weight:600;letter-spacing:0.1em">CONFIDENCE</span>
+            <div class="conf-bar-bg" style="flex:1">
+              <div class="conf-bar" id="irr-bar" style="width:0%;background:var(--blue)"></div>
+            </div>
+            <span id="irr-conf" style="font-size:0.65rem;font-family:monospace;color:var(--blue)">--%</span>
+          </div>
+        </div>
+
+        <!-- Yield -->
+        <div class="ai-card" style="background:linear-gradient(135deg,var(--card),rgba(22,163,74,0.05))">
+          <div class="ai-card-label">Estimated Yield Forecast</div>
+          <div style="display:flex;align-items:baseline;gap:0.5rem;margin-bottom:0.25rem">
+            <div class="ai-big shim" id="yield-val">----</div>
+            <span style="font-size:0.75rem;color:var(--muted);font-weight:500">KG/HA</span>
+          </div>
+          <div id="yield-hg" style="font-size:0.7rem;color:var(--muted);margin-bottom:0.75rem">-- hg/ha</div>
+          <div id="yield-badge"
+            style="display:inline-flex;align-items:center;padding:0.25rem 0.75rem;background:#0d120d;border-radius:99px;font-size:0.68rem;color:var(--muted)">
+            Awaiting data...</div>
+          <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
+            <div
+              style="font-size:0.6rem;color:var(--muted2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.35rem">
+              Soil Quality Index</div>
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <div id="soil-score"
+                style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:var(--green)">--
+              </div>
+              <div style="flex:1">
+                <div class="conf-bar-bg">
+                  <div id="soil-bar" class="conf-bar"
+                    style="width:0%;background:linear-gradient(90deg,var(--green3),var(--green))"></div>
+                </div>
+              </div>
+              <div id="soil-label" style="font-size:0.7rem;color:var(--muted);font-weight:600">--</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BOTTOM GRID -->
+      <div class="sec-label">
+        <div class="sec-dot"></div>Analytics
+      </div>
+      <div class="bottom-grid">
+
+        <!-- Telemetry -->
+        <div class="panel">
+          <div class="panel-title">
+            Environmental Telemetry
+            <div style="display:flex;gap:0.75rem;font-size:0.6rem;color:var(--muted)">
+              <span style="display:flex;align-items:center;gap:0.3rem"><span
+                  style="width:8px;height:8px;background:var(--green);border-radius:50%;display:inline-block"></span>Moisture</span>
+              <span style="display:flex;align-items:center;gap:0.3rem"><span
+                  style="width:8px;height:8px;background:var(--blue);border-radius:50%;display:inline-block"></span>Temp</span>
+              <span style="display:flex;align-items:center;gap:0.3rem"><span
+                  style="width:8px;height:8px;background:var(--yellow);border-radius:50%;display:inline-block"></span>Humidity</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="tele-chart"></canvas></div>
+        </div>
+
+        <!-- Yield chart -->
+        <div class="panel">
+          <div class="panel-title">
+            Estimated Yield Trend
+            <span id="yield-chart-label"
+              style="font-size:0.65rem;color:var(--green);font-weight:500;text-transform:none;letter-spacing:0">--</span>
+          </div>
+          <div class="chart-wrap"><canvas id="yield-chart"></canvas></div>
+        </div>
+
+        <!-- Feed -->
+        <div class="panel">
+          <div class="panel-title">System Intelligence Feed <span id="feed-count"
+              style="background:var(--green3);color:white;padding:0.1rem 0.4rem;border-radius:99px;font-size:0.6rem">0</span>
+          </div>
+          <div id="feed" style="max-height:220px;overflow-y:auto">
+            <div class="feed-item">
+              <div class="feed-icon" style="background:rgba(74,222,128,0.1)">🤖</div>
+              <div class="feed-body">
+                <div class="feed-title">KISAAN AI</div>
+                <div class="feed-msg">Waiting for sensor data...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- CONFIG ROW -->
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Crop</span>
+          <span id="c-crop" style="font-size:0.75rem;font-weight:600;color:var(--green)">--</span>
+        </div>
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Country</span>
+          <span id="c-country" style="font-size:0.75rem;font-weight:600;color:var(--text)">--</span>
+        </div>
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Days</span>
+          <span id="c-days" style="font-size:0.75rem;font-weight:600;color:var(--blue)">--</span>
+        </div>
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Pesticides</span>
+          <span id="c-pest" style="font-size:0.75rem;font-weight:600;color:var(--text)">--</span>
+        </div>
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Weather</span>
+          <span id="c-wx" style="font-size:0.75rem;font-weight:600;color:var(--blue)">📍 --</span>
+        </div>
+        <div
+          style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--border);border-radius:0.75rem;padding:0.6rem 1rem;display:flex;justify-content:space-between;align-items:center">
+          <span
+            style="font-size:0.6rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Year</span>
+          <span id="c-year" style="font-size:0.75rem;font-weight:600;color:var(--text)">--</span>
+        </div>
+      </div>
+
+    </div>
+
+    <footer
+      style="border-top:1px solid var(--border);padding:1.25rem 2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem">
+      <span style="font-size:0.65rem;color:var(--muted2)">KISAAN AI · AI Smart Agriculture · 4th Semester Mini
+        Project</span>
+      <div style="display:flex;gap:2rem">
+        <span style="font-size:0.65rem;color:var(--green)">Disease · RandomForest 84.6%</span>
+        <span style="font-size:0.65rem;color:var(--blue)">Irrigation · GradientBoosting 92.4%</span>
+        <span style="font-size:0.65rem;color:var(--yellow)">Yield · R²=0.9607</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script>
+    if (!window.FIREBASE_CONFIG) throw new Error('firebase-config.js missing');
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const auth = firebase.auth(), db = firebase.database();
+
+    // ── CROP IMAGES ───────────────────────────────────────────────────────────────
+    const CROP_IMG = {
+      maize: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=1400&q=80',
+      rice: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1400&q=80',
+      wheat: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=1400&q=80',
+      potato: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=1400&q=80',
+      tomato: 'https://images.unsplash.com/photo-1546094096-0df4bcabd337?w=1400&q=80',
+      coffee: 'https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?w=1400&q=80',
+      banana: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?w=1400&q=80',
+      cotton: 'https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=1400&q=80',
+      sugarcane: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=1400&q=80',
+      mango: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=1400&q=80',
+      grapes: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=1400&q=80',
+      apple: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=1400&q=80',
+      orange: 'https://images.unsplash.com/photo-1547514701-42782101795e?w=1400&q=80',
+      coconut: 'https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?w=1400&q=80',
+      chickpea: 'https://images.unsplash.com/photo-1515543904379-3d757afe72e4?w=1400&q=80',
+      lentil: 'https://images.unsplash.com/photo-1515543904379-3d757afe72e4?w=1400&q=80',
+      soybean: 'https://images.unsplash.com/photo-1599493758267-c6c884c7071f?w=1400&q=80',
+      barley: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80',
+      sorghum: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80',
+      groundnut: 'https://images.unsplash.com/photo-1567892320421-3b2a3a8ad8f5?w=1400&q=80',
+      cassava: 'https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=1400&q=80',
+      papaya: 'https://images.unsplash.com/photo-1526318896980-cf78c088247c?w=1400&q=80',
+      watermelon: 'https://images.unsplash.com/photo-1563114773-84221bd62daa?w=1400&q=80',
+      muskmelon: 'https://images.unsplash.com/photo-1571575173700-afb9492e6a50?w=1400&q=80',
+      pomegranate: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=1400&q=80',
+      jute: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=1400&q=80',
+      default: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=1400&q=80',
+    };
+
+    // ── STATE ─────────────────────────────────────────────────────────────────────
+    let uid = null, user = null, isDemoMode = false, demoIdx = 0, demoInt = null;
+    let listeners = [], teleChart, yieldChart, diseaseChart, miniCharts = {};
+    let miniHistory = { temp: [], hum: [], moist: [], rain: [], ph: [], n: [], p: [], k: [] };
+    let feedCount = 0, userLat = null, userLon = null;
+
+    // ── SPLASH ────────────────────────────────────────────────────────────────────
+    (() => {
+      const c = document.getElementById('sp-dots');
+      for (let i = 0; i < 25; i++) {
+        const d = document.createElement('div');
+        d.className = 'sp-dot';
+        d.style.cssText = `left:${Math.random() * 100}%;top:-20px;width:${2 + Math.random() * 3}px;height:${2 + Math.random() * 3}px;--d:${3 + Math.random() * 5}s;--dl:${Math.random() * 3}s`;
+        c.appendChild(d);
+      }
+    })();
+
+    setTimeout(() => {
+      const s = document.getElementById('splash');
+      s.classList.add('out');
+      setTimeout(() => {
+        s.style.display = 'none';
+        if (!uid) document.getElementById('auth-wrap').style.display = 'flex';
+      }, 600);
+    }, 3000);
+
+    // ── HELPERS ───────────────────────────────────────────────────────────────────
+    const T = (id, v) => { const e = document.getElementById(id); if (e) { e.innerText = v; e.classList.remove('shim'); } };
+    const soilPct = r => Math.max(0, Math.min(100, Math.round(((800 - r) / (680)) * 100)));
+    const calcSoil = (ph, N, P, K) => {
+      let s = 0;
+      if (ph >= 5.5 && ph <= 7.5) s += 30; else if (ph >= 5.0 && ph <= 8.0) s += 15;
+      s += Math.min(25, (N / 140) * 25); s += Math.min(25, (P / 145) * 25); s += Math.min(20, (K / 205) * 20);
+      return Math.round(s);
+    };
+
+    // ── MINI SPARKLINE CHARTS ────────────────────────────────────────────────────
+    const initMini = (id, color) => {
+      const ctx = document.getElementById(id);
+      if (!ctx) return null;
+      return new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: color.replace(')', ',0.08)').replace('rgb', 'rgba'), fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: 0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300 }
+        }
+      });
+    };
+
+    const pushMini = (chart, val, key) => {
+      if (!chart) return;
+      miniHistory[key].push(parseFloat(val) || 0);
+      if (miniHistory[key].length > 20) miniHistory[key].shift();
+      chart.data.labels = miniHistory[key].map((_, i) => i);
+      chart.data.datasets[0].data = [...miniHistory[key]];
+      chart.update('none');
+    };
+
+    const initAllMini = () => {
+      miniCharts.temp = initMini('mc-temp', 'rgb(56,189,248)');
+      miniCharts.hum = initMini('mc-hum', 'rgb(74,222,128)');
+      miniCharts.moist = initMini('mc-moist', 'rgb(74,222,128)');
+      miniCharts.rain = initMini('mc-rain', 'rgb(56,189,248)');
+      miniCharts.ph = initMini('mc-ph', 'rgb(234,179,8)');
+      miniCharts.n = initMini('mc-n', 'rgb(74,222,128)');
+      miniCharts.p = initMini('mc-p', 'rgb(74,222,128)');
+      miniCharts.k = initMini('mc-k', 'rgb(74,222,128)');
+    };
+
+    const initTeleChart = () => {
+      teleChart = new Chart(document.getElementById('tele-chart'), {
+        type: 'line',
+        data: {
+          labels: [], datasets: [
+            { label: 'Moisture', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.06)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0 },
+            { label: 'Temp', data: [], borderColor: '#38bdf8', borderDash: [4, 4], tension: 0.4, borderWidth: 1.5, pointRadius: 0 },
+            { label: 'Humidity', data: [], borderColor: '#eab308', tension: 0.4, borderWidth: 1, pointRadius: 0 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#3a503a', font: { size: 9 }, callback: v => `${v}` } },
+            x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#3a503a', font: { size: 9 } } }
+          }
+        }
+      });
+    };
+
+    const initYieldChart = () => {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      yieldChart = new Chart(document.getElementById('yield-chart'), {
+        type: 'bar',
+        data: {
+          labels: months, datasets: [{
+            label: 'Yield', data: [],
+            backgroundColor: 'rgba(74,222,128,0.2)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#3a503a', font: { size: 9 } } },
+            x: { grid: { display: false }, ticks: { color: '#3a503a', font: { size: 9 } } }
+          }
+        }
+      });
+    };
+
+    const initDiseaseChart = () => {
+      diseaseChart = new Chart(document.getElementById('diseaseChart'), {
+        type: 'doughnut',
+        data: { datasets: [{ data: [50, 50], backgroundColor: ['#4ade80', 'rgba(255,255,255,0.04)'], borderWidth: 0, cutout: '82%' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
+      });
+    };
+    // ── UPDATE SENSOR ─────────────────────────────────────────────────────────────
+    const updateSensors = s => {
+      if (!s) return;
+      const tc = s.temperature > 38 ? '#ef4444' : s.temperature > 32 ? '#eab308' : '#38bdf8';
+      T('v-temp', parseFloat(s.temperature).toFixed(1));
+      pushMini(miniCharts.temp, s.temperature, 'temp');
+
+      const hc = s.humidity > 85 ? '#ef4444' : s.humidity < 30 ? '#eab308' : '#4ade80';
+      T('v-hum', Math.round(s.humidity));
+      pushMini(miniCharts.hum, s.humidity, 'hum');
+
+      const mp = soilPct(s.soilMoisture);
+      T('v-moist', mp);
+      pushMini(miniCharts.moist, mp, 'moist');
+
+      T('v-rain', parseFloat(s.rainfall).toFixed(1));
+      pushMini(miniCharts.rain, s.rainfall, 'rain');
+
+      T('v-ph', parseFloat(s.ph).toFixed(1));
+      pushMini(miniCharts.ph, s.ph, 'ph');
+
+      T('v-n', Math.round(s.N)); pushMini(miniCharts.n, s.N, 'n');
+      T('v-p', Math.round(s.P)); pushMini(miniCharts.p, s.P, 'p');
+      T('v-k', Math.round(s.K)); pushMini(miniCharts.k, s.K, 'k');
+
+      // Soil quality
+      const sq = calcSoil(s.ph, s.N, s.P, s.K);
+      T('soil-score', sq);
+      T('soil-label', sq >= 80 ? 'Excellent' : sq >= 60 ? 'Good' : sq >= 40 ? 'Fair' : 'Poor');
+      const sb = document.getElementById('soil-bar');
+      if (sb) sb.style.width = `${sq}%`;
+
+      // Telemetry
+      if (teleChart) {
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        teleChart.data.labels.push(now);
+        teleChart.data.datasets[0].data.push(mp);
+        teleChart.data.datasets[1].data.push(parseFloat(s.temperature).toFixed(1));
+        teleChart.data.datasets[2].data.push(Math.round(s.humidity));
+        if (teleChart.data.labels.length > 24) { teleChart.data.labels.shift(); teleChart.data.datasets.forEach(d => d.data.shift()); }
+        teleChart.update('none');
+      }
+    };
+
+    // ── UPDATE PREDICTIONS ────────────────────────────────────────────────────────
+    const updatePredictions = p => {
+      if (!p) return;
+      const d = p.disease || {};
+      if (d.label === 'Not Available') {
+        T('disease-status', 'N/A'); T('disease-badge', 'N/A'); T('disease-rec', d.reason || ''); T('disease-pct', '--');
+      } else {
+        const risk = d.label === 'At_Risk';
+        const hp = d.healthyProb != null ? Math.round(d.healthyProb * 100) : 50;
+        const rp = d.atRiskProb != null ? Math.round(d.atRiskProb * 100) : 50;
+        T('disease-pct', `${hp}%`);
+        T('disease-status', risk ? 'AT RISK ⚠' : 'HEALTHY ✓');
+
+        const diseaseName = d.diseaseName ? d.diseaseName.replace(/_/g, ' ') : null;
+        T('disease-rec', risk
+          ? `${rp}% probability${diseaseName ? ' — ' + diseaseName : ''} — consider treatment.`
+          : 'No intervention needed. Crop is healthy.');
+        if (db2) { db2.className = `ai-badge ${risk ? 'badge-red' : 'badge-green'}`; db2.innerText = risk ? 'HIGH RISK' : 'LOW RISK'; }
+        const ds = document.getElementById('disease-status');
+        if (ds) ds.style.color = risk ? '#ef4444' : '#4ade80';
+        const dbar = document.getElementById('disease-bar');
+        if (dbar) { dbar.style.width = `${rp}%`; dbar.style.background = risk ? '#ef4444' : '#4ade80'; }
+        if (diseaseChart) { diseaseChart.data.datasets[0].data = [hp, rp]; diseaseChart.data.datasets[0].backgroundColor = [risk ? '#eab308' : '#4ade80', 'rgba(255,255,255,0.04)']; diseaseChart.update(); }
+        if(risk)addFeed('danger','Disease Risk Detected',`${rp}% probability${d.diseaseName ? ' — ' + d.diseaseName.replace(/_/g,' ') : ''} — consider fungicide treatment.`);
+      }
+      const ir = p.irrigation || {};
+      if (ir.label === 'Not Available') {
+        T('irr-status', 'N/A'); T('irr-action', ir.reason || ''); T('irr-conf', '--');
+        document.getElementById('irr-icon').style.opacity = '0.2';
+      } else {
+        const doIrr = ir.irrigate === 1;
+        const cp = ir.confidence != null ? Math.round(ir.confidence * 100) : 0;
+        T('irr-status', doIrr ? 'IRRIGATE NOW' : 'NO IRRIGATION');
+        T('irr-action', doIrr ? '🚿 Activate irrigation system' : '✅ Soil moisture is adequate');
+        T('irr-conf', `${cp}%`);
+        const ic = document.getElementById('irr-icon');
+        ic.style.opacity = '1'; ic.style.filter = doIrr ? 'drop-shadow(0 0 16px #38bdf8)' : 'none';
+        const ib = document.getElementById('irr-bar');
+        if (ib) { ib.style.width = `${cp}%`; ib.style.background = cp > 80 ? '#4ade80' : cp > 60 ? '#eab308' : '#ef4444'; }
+        const is = document.getElementById('irr-status');
+        if (is) is.style.color = doIrr ? '#38bdf8' : 'white';
+        if (doIrr) addFeed('warning', 'Irrigation Required', `Confidence: ${cp}% — activate water supply.`);
+      }
+      const y = p.yield || {};
+      if (y.kgPerHa != null) {
+        const kg = Math.round(y.kgPerHa);
+        T('yield-val', kg.toLocaleString());
+        T('yield-hg', `${Math.round(y.hgPerHa || 0).toLocaleString()} hg/ha`);
+        document.getElementById('yield-chart-label').innerText = `${kg.toLocaleString()} kg/ha`;
+        // Simulate monthly trend
+        if (yieldChart) {
+          const base = kg;
+          yieldChart.data.datasets[0].data = Array.from({ length: 12 }, (_, i) => Math.round(base * (0.6 + Math.sin(i * 0.5) * 0.2 + Math.random() * 0.15)));
+          yieldChart.update();
+        }
+        const AVGS = { 'maize': 2500, 'rice': 2700, 'wheat': 3200, 'potato': 20000, 'tomato': 35000, 'sugarcane': 70000, 'banana': 20000, 'soybean': 2800, 'barley': 2500, 'sorghum': 1500, 'cassava': 12000, 'groundnut': 1800, 'cotton': 1500, 'coffee': 800, 'orange': 15000, 'sugarbeet': 45000, 'rapeseed': 1800, 'yam': 10000, 'sweet potato': 12000, 'pea': 2000, 'bean': 1200, 'palm oil': 3500 };
+        const avg = AVGS[document.getElementById('c-crop').innerText.toLowerCase().trim()] || 2500;
+        const diff = Math.abs(Math.round(((kg - avg) / avg) * 100));
+        const above = kg > avg;
+        const yb = document.getElementById('yield-badge');
+        if (yb) { yb.className = `ai-badge ${above ? 'badge-green' : 'badge-red'}`; yb.innerText = above ? `▲ +${diff}% vs Region` : `▼ -${diff}% vs Region`; }
+      } else { T('yield-val', 'N/A'); T('yield-hg', y.reason || ''); }
+
+      const dRisk = p.disease?.label === 'At_Risk', needWater = p.irrigation?.irrigate === 1;
+      let health = 'OPTIMAL', hc = '#4ade80';
+      if (dRisk && needWater) { health = 'CRITICAL'; hc = '#ef4444'; }
+      else if (dRisk || needWater) { health = 'ATTENTION'; hc = '#eab308'; }
+      const hb = document.getElementById('hero-health');
+      if (hb) { hb.innerText = health; hb.style.color = hc; }
+      const nd = document.getElementById('notif-dot');
+      if (nd) nd.style.display = (dRisk || needWater) ? 'block' : 'none';
+      if (health === 'CRITICAL') addFeed('danger', 'CRITICAL ALERT', 'Disease risk AND irrigation needed simultaneously!');
+    };
+
+    // ── UPDATE CONFIG ─────────────────────────────────────────────────────────────
+    const updateConfig = cfg => {
+      if (!cfg) return;
+      const crop = (cfg.cropType || 'crop').toLowerCase();
+      T('c-crop', cfg.cropType || '--');
+      T('c-country', cfg.country || '--');
+      T('c-days', cfg.cropDays ? `${cfg.cropDays} days` : '--');
+      T('c-pest', cfg.pesticides ? `${cfg.pesticides}t` : '--');
+      T('c-year', cfg.year || '--');
+      T('hero-crop', (cfg.cropType || 'CROP').toUpperCase());
+      T('hero-country', (cfg.country || '--').toUpperCase());
+      T('hero-days', cfg.cropDays || '--');
+      // Set crop image
+      const img = CROP_IMG[crop] || CROP_IMG.default;
+      const hi = document.getElementById('hero-img');
+      if (hi) hi.style.backgroundImage = `url('${img}')`;
+    };
+
+    // ── FEED ──────────────────────────────────────────────────────────────────────
+    const FEED_ICONS = { danger: '⚠️', warning: '💧', success: '✅', info: '🤖' };
+    const FEED_BG = { danger: 'rgba(239,68,68,0.1)', warning: 'rgba(234,179,8,0.1)', success: 'rgba(74,222,128,0.1)', info: 'rgba(74,222,128,0.08)' };
+    const addFeed = (type, title, msg) => {
+      // Add to intelligence feed panel
+      const f = document.getElementById('feed');
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const d = document.createElement('div');
+      d.className = 'feed-item';
+      d.innerHTML = `<div class="feed-icon" style="background:${FEED_BG[type] || FEED_BG.info}">${FEED_ICONS[type] || '🤖'}</div><div class="feed-body"><div class="feed-title">${title}</div><div class="feed-msg">${msg}</div><div class="feed-time">${time}</div></div>`;
+      if (f && f.children.length === 1 && f.children[0].querySelector('.feed-msg')?.innerText === 'Waiting for sensor data...') f.innerHTML = '';
+      if (f) { f.insertAdjacentElement('afterbegin', d); while (f.children.length > 8) f.lastElementChild.remove(); }
+      feedCount++;
+      const fc = document.getElementById('feed-count');
+      if (fc) fc.innerText = feedCount;
+      // Also push to bell notification panel
+      pushNotif(type, title, msg);
+    };
+
+    // ── STATUS ────────────────────────────────────────────────────────────────────
+    const setStatus = (ok, msg) => {
+      const sb = document.getElementById('status-bar');
+      sb.style.background = ok ? 'rgba(22,163,74,0.08)' : 'rgba(239,68,68,0.08)';
+      sb.style.borderBottomColor = ok ? 'rgba(22,163,74,0.15)' : 'rgba(239,68,68,0.15)';
+      const st = document.getElementById('status-text');
+      if (st) { st.innerText = msg; st.style.color = ok ? '#4ade80' : '#ef4444'; }
+      const dot = sb.querySelector('.status-dot');
+      if (dot) dot.style.background = ok ? '#4ade80' : '#ef4444';
+      const sc = document.getElementById('status-time');
+      if (sc) sc.innerText = new Date().toLocaleTimeString();
+    };
+
+    // ── WEATHER ───────────────────────────────────────────────────────────────────
+    const fetchRain = (lat, lon) => {
+      return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum&forecast_days=1&timezone=auto`)
+        .then(r => r.json()).then(data => {
+          const mm = data.daily.precipitation_sum[0] || 0;
+          const annual = parseFloat((mm * 365).toFixed(1));
+          T('hero-rain', `${annual} mm/yr`);
+          T('c-wx', `📍 ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`);
+          if (uid) db.ref(`/users/${uid}/sensors/latest/rainfall`).set(annual);
+          addFeed('info', 'Weather Updated', `Today: ${mm.toFixed(1)}mm · Annual est: ${annual}mm`);
+          return annual;
+        }).catch(() => 120.0);
+    };
+
+    const getLocation = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          userLat = pos.coords.latitude; userLon = pos.coords.longitude;
+          if (uid) db.ref(`/users/${uid}/location`).set({ lat: userLat, lon: userLon, at: new Date().toISOString() });
+          fetchRain(userLat, userLon);
+        },
+        () => {
+          if (uid) {
+            db.ref(`/users/${uid}/location`).once('value').then(s => {
+              const l = s.val();
+              if (l) { userLat = l.lat; userLon = l.lon; fetchRain(l.lat, l.lon); }
+            });
+          }
+        },
+        { timeout: 8000, maximumAge: 300000 }
+      );
+    };
+
+    // ── FIREBASE CONNECT ──────────────────────────────────────────────────────────
+    const connectFirebase = id => {
+      if (auth.currentUser) {
+        auth.currentUser.getIdToken().then(tok => {
+          fetch('http://localhost:5000/register-listener', { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: '{}' })
+            .catch(() => addFeed('warning', 'Backend', 'Flask not available — start app.py'));
+        });
+      }
+      listeners.forEach(r => r.off()); listeners = [];
+      const sr = db.ref(`/users/${id}/sensors/latest`);
+      const pr = db.ref(`/users/${id}/predictions`);
+      const cr = db.ref(`/users/${id}/config`);
+      sr.on('value', s => { if (!isDemoMode && s.val()) updateSensors(s.val()); });
+      pr.on('value', s => { if (!isDemoMode && s.val()) updatePredictions(s.val()); });
+      cr.on('value', s => { if (!isDemoMode && s.val()) updateConfig(s.val()); });
+      listeners = [sr, pr, cr];
+      db.ref('.info/connected').on('value', s => {
+        if (!isDemoMode) setStatus(s.val() === true, s.val() ? `Connected — streaming data for ${id.substring(0, 8)}...` : 'Disconnected — retrying...');
+      });
+      if (window._rainInterval) clearInterval(window._rainInterval);
+      getLocation();
+      window._rainInterval = setInterval(getLocation, 30 * 60 * 1000);
+    };
+
+    // ── AUTH ──────────────────────────────────────────────────────────────────────
+    function switchTab(t) {
+      ['login', 'register'].forEach(x => {
+        document.getElementById(`form-${x}`).style.display = x === t ? 'block' : 'none';
+        document.getElementById(`tab-${x}`).className = 'auth-tab' + (x === t ? ' on' : '');
+      });
+      document.getElementById('auth-err').style.display = 'none';
+      document.getElementById('auth-ok').style.display = 'none';
+    }
+    const showErr = m => { const e = document.getElementById('auth-err'); e.innerText = m; e.style.display = 'block'; };
+    const showOk = m => { const e = document.getElementById('auth-ok'); e.innerText = m; e.style.display = 'block'; };
+
+    function doGoogleLogin() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      auth.signInWithPopup(provider)
+        .then(result => {
+          const u = result.user;
+          // Save profile on first Google login
+          db.ref(`/users/${u.uid}/profile`).once('value').then(snap => {
+            if (!snap.val()) {
+              db.ref(`/users/${u.uid}/profile`).set({
+                name: u.displayName || '',
+                email: u.email || '',
+                photoURL: u.photoURL || '',
+                createdAt: new Date().toISOString()
+              });
+            }
+          });
+        })
+        .catch(e => {
+          const msgs = { 'auth/popup-closed-by-user': 'Sign-in cancelled.', 'auth/popup-blocked': 'Popup blocked — please allow popups.', 'auth/cancelled-popup-request': '' };
+          const msg = msgs[e.code] || e.message;
+          if (msg) { const err = document.getElementById('auth-err'); err.innerText = msg; err.style.display = 'block'; }
+        });
+    }
+
+    function doLogin() {
+      const email = document.getElementById('l-email').value.trim();
+      const pass = document.getElementById('l-pass').value;
+      if (!email || !pass) { showErr('Please enter email and password.'); return; }
+      const btn = document.getElementById('login-btn');
+      btn.innerText = 'Signing in...'; btn.disabled = true;
+      document.getElementById('auth-err').style.display = 'none';
+      auth.signInWithEmailAndPassword(email, pass)
+        .then(() => { btn.innerText = 'Sign In to Dashboard'; btn.disabled = false; })
+        .catch(e => {
+          btn.innerText = 'Sign In to Dashboard'; btn.disabled = false;
+          const msgs = { 'auth/user-not-found': 'No account with this email.', 'auth/wrong-password': 'Incorrect password.', 'auth/invalid-email': 'Invalid email.', 'auth/too-many-requests': 'Too many attempts — try later.' };
+          showErr(msgs[e.code] || e.message);
+        });
+    }
+
+    function doRegister() {
+      const name = document.getElementById('r-name').value.trim();
+      const email = document.getElementById('r-email').value.trim();
+      const pass = document.getElementById('r-pass').value;
+      if (!name || !email || !pass) { showErr('Please fill all fields.'); return; }
+      if (pass.length < 6) { showErr('Password must be at least 6 characters.'); return; }
+      const btn = document.getElementById('reg-btn');
+      btn.innerText = 'Creating...'; btn.disabled = true;
+      auth.createUserWithEmailAndPassword(email, pass)
+        .then(c => c.user.updateProfile({ displayName: name }).then(() => db.ref(`/users/${c.user.uid}/profile`).set({ name, email, at: new Date().toISOString() })))
+        .then(() => { btn.innerText = 'Create Account'; btn.disabled = false; showOk('✅ Account created! Logging you in...'); })
+        .catch(e => { btn.innerText = 'Create Account'; btn.disabled = false; const msgs = { 'auth/email-already-in-use': 'Email already registered.', 'auth/weak-password': 'Password too weak.' }; showErr(msgs[e.code] || e.message); });
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (document.getElementById('form-login').style.display !== 'none') doLogin();
+      else doRegister();
+    });
+
+    // ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
+    let notifications = [];
+    function pushNotif(type, title, msg) {
+      const n = { type, title, msg, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), id: Date.now() };
+      notifications.unshift(n);
+      if (notifications.length > 15) notifications.pop();
+      renderNotifPanel();
+      const badge = document.getElementById('notif-badge');
+      if (badge) badge.style.display = 'block';
+    }
+    const NOTIF_BG = { danger: 'rgba(239,68,68,0.1)', warning: 'rgba(234,179,8,0.1)', success: 'rgba(74,222,128,0.1)', info: 'rgba(74,222,128,0.08)' };
+    const NOTIF_ICON = { danger: '⚠️', warning: '💧', success: '✅', info: '🤖' };
+    function renderNotifPanel() {
+      const list = document.getElementById('notif-list');
+      if (!list) return;
+      if (notifications.length === 0) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return; }
+      list.innerHTML = notifications.map(n => `
+    <div class="notif-item">
+      <div class="notif-icon" style="background:${NOTIF_BG[n.type] || NOTIF_BG.info}">${NOTIF_ICON[n.type] || '🤖'}</div>
+      <div class="notif-body">
+        <div class="notif-msg-title">${n.title}</div>
+        <div class="notif-msg-text">${n.msg}</div>
+        <div class="notif-time">${n.time}</div>
+      </div>
+    </div>`).join('');
+    }
+    function toggleNotifPanel() {
+      const p = document.getElementById('notif-panel');
+      const badge = document.getElementById('notif-badge');
+      if (!p) return;
+      const isOpen = p.style.display === 'block';
+      closeDropdowns();
+      if (!isOpen) { p.style.display = 'block'; if (badge) badge.style.display = 'none'; }
+    }
+    function clearNotifications() {
+      notifications = [];
+      renderNotifPanel();
+      document.getElementById('notif-badge').style.display = 'none';
+    }
+
+    // ── PROFILE DROPDOWN ──────────────────────────────────────────────────────────
+    function toggleProfileDropdown() {
+      const d = document.getElementById('profile-dropdown');
+      const isOpen = d.style.display === 'block';
+      closeDropdowns();
+      if (!isOpen) d.style.display = 'block';
+    }
+    function closeDropdowns() {
+      const els = ['profile-dropdown', 'notif-panel'];
+      els.forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    }
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#profile-wrap') && !e.target.closest('#notif-wrap')) closeDropdowns();
+    });
+
+    // ── PROFILE MODAL ─────────────────────────────────────────────────────────────
+    function openProfileModal() {
+      closeDropdowns();
+      document.getElementById('profile-modal-bg').style.display = 'flex';
+      document.getElementById('pm-name').value = user?.displayName || '';
+      document.getElementById('pm-email').value = user?.email || '';
+      document.getElementById('pm-msg').style.display = 'none';
+    }
+    function uploadPhoto(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = e => {
+        const src = e.target.result;
+        // Update all avatar places
+        ['pm-avatar', 'pd-avatar-lg', 'nav-avatar-wrap'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+        });
+        // Save to firebase
+        if (uid) db.ref(`/users/${uid}/profile/photoURL`).set(src);
+      };
+      reader.readAsDataURL(file);
+    }
+    function saveProfile() {
+      const name = document.getElementById('pm-name').value.trim();
+      if (!name) { alert('Please enter a name.'); return; }
+      auth.currentUser.updateProfile({ displayName: name }).then(() => {
+        if (uid) db.ref(`/users/${uid}/profile/name`).set(name);
+        document.getElementById('pm-msg').style.display = 'block';
+        document.getElementById('pm-msg').innerText = '✅ Profile updated!';
+        // Update nav
+        setNavUser(auth.currentUser);
+        setTimeout(() => document.getElementById('profile-modal-bg').style.display = 'none', 1500);
+      });
+    }
+
+    // ── SET NAV USER ──────────────────────────────────────────────────────────────
+    function setNavUser(u) {
+      if (!u) return;
+      const name = u.displayName || u.email || '?';
+      const initial = name[0].toUpperCase();
+      // Short display name in nav — first name only or email prefix
+      const shortName = u.displayName ? u.displayName.split(' ')[0] : (u.email || '').split('@')[0];
+      const ni = document.getElementById('nav-initials');
+      if (ni) ni.innerText = shortName.substring(0, 12);
+      // Avatar initial
+      ['nav-avatar', 'pm-initial', 'pd-avatar-initial'].forEach(id => {
+        const e = document.getElementById(id); if (e) e.innerText = initial;
+      });
+      const pdName = document.getElementById('pd-name');
+      const pdEmail = document.getElementById('pd-email');
+      if (pdName) pdName.innerText = u.displayName || 'No name set';
+      if (pdEmail) pdEmail.innerText = u.email || '';
+      // Load photo — check Google photo first, then Firebase saved photo
+      const googlePhoto = u.photoURL;
+      if (googlePhoto) {
+        ['pm-avatar', 'pd-avatar-lg', 'nav-avatar-wrap'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.innerHTML = `<img src="${googlePhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+        });
+      } else {
+        db.ref(`/users/${u.uid}/profile/photoURL`).once('value').then(s => {
+          const url = s.val();
+          if (url) {
+            ['pm-avatar', 'pd-avatar-lg', 'nav-avatar-wrap'].forEach(id => {
+              const el = document.getElementById(id);
+              if (!el) return;
+              el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+            });
+          }
+        });
+      }
+    }
+
+    // ── AUTH STATE ────────────────────────────────────────────────────────────────
+    auth.onAuthStateChanged(u => {
+      if (u) {
+        uid = u.uid; user = u;
+        document.getElementById('auth-wrap').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        setNavUser(u);
+        pushNotif('success', 'Login Successful', `Welcome back, ${u.displayName || u.email}`);
+        connectFirebase(uid);
+      } else {
+        uid = null; user = null;
+        document.getElementById('app').style.display = 'none';
+        const aw = document.getElementById('auth-wrap');
+        if (document.getElementById('splash').style.display === 'none') aw.style.display = 'flex';
+        listeners.forEach(r => r.off()); listeners = [];
+        feedCount = 0; notifications = [];
+        setStatus(false, 'Please login.');
+        const lb = document.getElementById('login-btn');
+        if (lb) { lb.innerText = 'Sign In to Dashboard'; lb.disabled = false; }
+      }
+    });
+
+    // ── SETTINGS ──────────────────────────────────────────────────────────────────
+    function openSettings() {
+      document.getElementById('settings-modal').style.display = 'flex';
+      document.getElementById('modal-ok').style.display = 'none';
+      db.ref(`/users/${uid}/config`).once('value').then(s => {
+        const c = s.val() || {};
+        document.getElementById('s-crop').value = c.cropType || 'maize';
+        document.getElementById('s-country').value = c.country || 'India';
+        document.getElementById('s-year').value = c.year || 2024;
+        document.getElementById('s-days').value = c.cropDays || 45;
+        document.getElementById('s-pest').value = c.pesticides || 500;
+      });
+    }
+    document.getElementById('settings-modal').addEventListener('click', e => { if (e.target.id === 'settings-modal') e.target.style.display = 'none'; });
+
+    function saveSettings() {
+      const cropType = document.getElementById('s-crop').value;
+      const country = document.getElementById('s-country').value.trim();
+      const cropDays = parseInt(document.getElementById('s-days').value) || 0;
+      const pesticides = parseInt(document.getElementById('s-pest').value) || 0;
+      const year = parseInt(document.getElementById('s-year').value) || 2024;
+      if (!country) { alert('Please enter a country.'); return; }
+      db.ref(`/users/${uid}/config`).set({ cropType, country, cropDays, pesticides, year })
+        .then(() => { document.getElementById('modal-ok').style.display = 'block'; addFeed('success', 'Config Updated', `Crop: ${cropType} · ${cropDays} days · ${country}`); setTimeout(() => { document.getElementById('settings-modal').style.display = 'none'; }, 1800); })
+        .catch(e => addFeed('danger', 'Save Failed', e.message));
+    }
+
+    // ── DEMO ──────────────────────────────────────────────────────────────────────
+    const DEMOS = [
+      { s: { temperature: 28.5, humidity: 75, soilMoisture: 450, rainfall: 120, ph: 6.5, N: 50, P: 40, K: 35 }, p: { disease: { label: "Healthy", atRiskProb: 0.23, healthyProb: 0.77 }, irrigation: { label: "No Irrigation", irrigate: 0, confidence: 0.95 }, yield: { kgPerHa: 4586.19, hgPerHa: 45861.9 } }, c: { cropType: "maize", country: "India", cropDays: 45, pesticides: 500, year: 2024 } },
+      { s: { temperature: 32, humidity: 92, soilMoisture: 800, rainfall: 220, ph: 5.2, N: 50, P: 40, K: 35 }, p: { disease: { label: "At_Risk", atRiskProb: 0.81, healthyProb: 0.19 }, irrigation: { label: "Irrigate", irrigate: 1, confidence: 0.99 }, yield: { kgPerHa: 3233.20, hgPerHa: 32332.0 } }, c: { cropType: "rice", country: "India", cropDays: 60, pesticides: 500, year: 2024 } },
+      { s: { temperature: 22, humidity: 55, soilMoisture: 300, rainfall: 80, ph: 7.0, N: 70, P: 60, K: 80 }, p: { disease: { label: "Healthy", atRiskProb: 0.12, healthyProb: 0.88 }, irrigation: { label: "No Irrigation", irrigate: 0, confidence: 0.97 }, yield: { kgPerHa: 6200, hgPerHa: 62000 } }, c: { cropType: "wheat", country: "India", cropDays: 75, pesticides: 200, year: 2024 } },
+      { s: { temperature: 38, humidity: 82, soilMoisture: 680, rainfall: 280, ph: 4.8, N: 25, P: 18, K: 15 }, p: { disease: { label: "At_Risk", atRiskProb: 0.73, healthyProb: 0.27 }, irrigation: { label: "Irrigate", irrigate: 1, confidence: 0.91 }, yield: { kgPerHa: 2800, hgPerHa: 28000 } }, c: { cropType: "cotton", country: "India", cropDays: 110, pesticides: 800, year: 2024 } },
+    ];
+
+    function toggleDemo() {
+      isDemoMode = !isDemoMode;
+      const sw = document.getElementById('demo-sw');
+      sw.classList.toggle('on', isDemoMode);
+      if (isDemoMode) {
+        demoIdx = 0;
+        const d = DEMOS[demoIdx % DEMOS.length]; updateSensors(d.s); updatePredictions(d.p); updateConfig(d.c); demoIdx++;
+        demoInt = setInterval(() => { const d = DEMOS[demoIdx % DEMOS.length]; updateSensors(d.s); updatePredictions(d.p); updateConfig(d.c); demoIdx++; }, 5000);
+        setStatus(false, '🎬 DEMO MODE — Cycling 4 farm scenarios');
+        addFeed('info', 'Demo Mode', 'Simulating 4 different farm scenarios.');
+      } else {
+        clearInterval(demoInt);
+        if (uid) connectFirebase(uid);
+      }
+    }
+
+    // ── INIT ──────────────────────────────────────────────────────────────────────
+    window.onload = () => {
+      document.getElementById('hero-img').style.backgroundImage = `url('${CROP_IMG.default}')`;
+      initAllMini();
+      initTeleChart();
+      initYieldChart();
+      initDiseaseChart();
+      setInterval(() => { const e = document.getElementById('live-clock'); if (e) e.innerText = new Date().toUTCString().split(' ')[4] + ' UTC'; }, 1000);
+    };
+  </script>
+</body>
+
+</html>
+
