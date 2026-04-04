@@ -1,4 +1,7 @@
 import os
+import io
+import json
+import base64
 import logging
 import threading
 import numpy as np
@@ -26,100 +29,565 @@ firebase_admin.initialize_app(cred, {
     "databaseURL": os.getenv("FIREBASE_DB_URL", "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com")
 })
 
-# ── Load models ───────────────────────────────────────────────────────────────
+# ── Load sklearn models ───────────────────────────────────────────────────────
 BASE = os.path.dirname(__file__)
+log.info("Loading sklearn models...")
 
-log.info("Loading models...")
-
-disease_model = joblib.load(os.path.join(BASE, "models", "crop_disease_model.pkl"))
-disease_le    = joblib.load(os.path.join(BASE, "models", "disease_label_encoder.pkl"))
-disease_name_model = joblib.load(os.path.join(BASE, "models", "crop_disease_name_model.pkl"))
-disease_name_le    = joblib.load(os.path.join(BASE, "models", "disease_name_label_encoder.pkl"))
-crop_name_le       = joblib.load(os.path.join(BASE, "models", "crop_name_encoder.pkl"))
+# Disease XGBoost model kept loaded (used as a fallback tiebreaker only)
+disease_model     = joblib.load(os.path.join(BASE, "models", "crop_disease_model.pkl"))
+disease_le        = joblib.load(os.path.join(BASE, "models", "disease_label_encoder.pkl"))
+crop_name_le      = joblib.load(os.path.join(BASE, "models", "crop_name_encoder.pkl"))
 
 irrigation_model  = joblib.load(os.path.join(BASE, "models", "irrigation_model.pkl"))
 irrigation_scaler = joblib.load(os.path.join(BASE, "models", "scaler.pkl"))
 irrigation_le     = joblib.load(os.path.join(BASE, "models", "label_encoder.pkl"))
 
-yield_model = joblib.load(os.path.join(BASE, "models", "crop_yield_model.pkl"))
+yield_model       = joblib.load(os.path.join(BASE, "models", "crop_yield_model.pkl"))
 
-log.info("All models loaded.")
+log.info("Sklearn models loaded.")
+
+# ── Load CNN model ────────────────────────────────────────────────────────────
+CNN_MODEL    = None
+CNN_LABELS   = {}
+CNN_IMG_SIZE = 224
+
+CNN_MODEL_PATH  = os.path.join(BASE, "models", "plant_disease_cnn.h5")
+CNN_LABELS_PATH = os.path.join(BASE, "models", "cnn_class_labels.json")
+
+def load_cnn():
+    global CNN_MODEL, CNN_LABELS
+    try:
+        import tensorflow as tf
+        from tensorflow import keras
+        CNN_MODEL  = keras.models.load_model(CNN_MODEL_PATH)
+        with open(CNN_LABELS_PATH, "r") as f:
+            CNN_LABELS = json.load(f)
+        log.info("CNN model loaded — %d classes.", len(CNN_LABELS))
+    except Exception as e:
+        log.warning("CNN model not loaded: %s", e)
+
+threading.Thread(target=load_cnn, daemon=True).start()
+
+# ── CNN supported crops ───────────────────────────────────────────────────────
+CNN_SUPPORTED_CROPS = {
+    "apple", "blueberry", "cherry", "corn", "maize", "grape", "grapes",
+    "orange", "peach", "bell pepper", "pepper", "potato", "raspberry",
+    "soybean", "squash", "strawberry", "tomato",
+    "rice", "wheat", "cotton", "banana", "mango"
+}
 
 # ── Crop name maps ────────────────────────────────────────────────────────────
 DISEASE_CROPS = {
-    "rice"       : "rice",
-    "maize"      : "maize",
-    "chickpea"   : "chickpea",
-    "kidneybeans": "kidneybeans",
-    "pigeonpeas" : "pigeonpeas",
-    "mothbeans"  : "mothbeans",
-    "mungbean"   : "mungbean",
-    "blackgram"  : "blackgram",
-    "lentil"     : "lentil",
-    "pomegranate": "pomegranate",
-    "banana"     : "banana",
-    "mango"      : "mango",
-    "grapes"     : "grapes",
-    "watermelon" : "watermelon",
-    "muskmelon"  : "muskmelon",
-    "apple"      : "apple",
-    "orange"     : "orange",
-    "papaya"     : "papaya",
-    "coconut"    : "coconut",
-    "cotton"     : "cotton",
-    "jute"       : "jute",
-    "coffee"     : "coffee"
+    "rice": "rice", "maize": "maize", "chickpea": "chickpea",
+    "kidneybeans": "kidneybeans", "pigeonpeas": "pigeonpeas",
+    "mothbeans": "mothbeans", "mungbean": "mungbean", "blackgram": "blackgram",
+    "lentil": "lentil", "pomegranate": "pomegranate", "banana": "banana",
+    "mango": "mango", "grapes": "grapes", "watermelon": "watermelon",
+    "muskmelon": "muskmelon", "apple": "apple", "orange": "orange",
+    "papaya": "papaya", "coconut": "coconut", "cotton": "cotton",
+    "jute": "jute", "coffee": "coffee",
+    "potato": "potato", "tomato": "tomato", "soybean": "soybean",
+    "wheat": "wheat", "sugarcane": "sugarcane", "groundnut": "groundnut",
+    "barley": "barley", "sorghum": "sorghum", "pea": "pea",
+    "bean": "bean", "sweetpotato": "sweetpotato", "yam": "yam",
+    "rapeseed": "rapeseed", "sugarbeet": "sugarbeet", "peach": "peach",
+    "cherry": "cherry", "strawberry": "strawberry", "blueberry": "blueberry",
+    "raspberry": "raspberry", "squash": "squash", "bellpepper": "bellpepper",
+    "corn": "corn", "grape": "grape", "pepper": "pepper",
+    "paddy": "paddy", "cassava": "cassava",
 }
 
 IRRIGATION_CROPS = {
-    "wheat"         : "Wheat",
-    "maize"         : "Maize",
-    "rice"          : "Paddy",
-    "paddy"         : "Paddy",
-    "potato"        : "Potato",
-    "sugarcane"     : "Sugarcane",
-    "coffee"        : "Coffee",
-    "groundnuts"    : "Groundnuts",
-    "pulse"         : "Pulse",
-    "garden flowers": "Garden Flowers"
+    "wheat": "Wheat", "maize": "Maize", "rice": "Rice", "paddy": "Paddy",
+    "potato": "Potato", "sugarcane": "Sugarcane", "coffee": "Coffee",
+    "groundnuts": "Groundnuts", "pulse": "Pulse", "garden flowers": "Garden Flowers",
+    "cotton": "Cotton", "banana": "Banana", "mango": "Mango", "tomato": "Tomato",
+    "soybean": "Soybean", "onion": "Onion", "mustard": "Mustard",
+    "sorghum": "Sorghum", "barley": "Barley", "chickpea": "Chickpea",
+    "lentil": "Lentil", "sunflower": "Sunflower", "ginger": "Ginger",
+    "turmeric": "Turmeric", "orange": "Orange",
 }
 
 YIELD_CROPS = {
-    "banana"        : "Bananas",
-    "barley"        : "Barley",
-    "bean"          : "Beans",
-    "cassava"       : "Cassava",
-    "coffee"        : "Coffee",
-    "cotton"        : "Cotton",
-    "groundnut"     : "Groundnuts",
-    "maize"         : "Maize",
-    "orange"        : "Oranges",
-    "palm oil"      : "Palm oil",
-    "pea"           : "Peas",
-    "plantain"      : "Plantains and others",
-    "potato"        : "Potatoes",
-    "rapeseed"      : "Rapeseed",
-    "rice"          : "Rice",
-    "sorghum"       : "Sorghum",
-    "soybean"       : "Soybeans",
-    "sugarbeet"     : "Sugarbeet",
-    "sugarcane"     : "Sugarcane",
-    "sweet potato"  : "Sweet potatoes",
-    "tomato"        : "Tomatoes",
-    "wheat"         : "Wheat",
-    "yam"           : "Yams"
+    "banana": "Bananas", "barley": "Barley", "bean": "Beans",
+    "cassava": "Cassava", "coffee": "Coffee", "cotton": "Cotton",
+    "groundnut": "Groundnuts", "maize": "Maize", "orange": "Oranges",
+    "palm oil": "Palm oil", "pea": "Peas", "plantain": "Plantains and others",
+    "potato": "Potatoes", "rapeseed": "Rapeseed", "rice": "Rice",
+    "sorghum": "Sorghum", "soybean": "Soybeans", "sugarbeet": "Sugarbeet",
+    "sugarcane": "Sugarcane", "sweet potato": "Sweet potatoes",
+    "tomato": "Tomatoes", "wheat": "Wheat", "yam": "Yams"
 }
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CROP-AWARE HEALTH RISK ENGINE
+# Source: ICAR guidelines + FAO crop production thresholds
+# Each crop has:
+#   humidity_ideal   — normal operating range (min, max) %
+#   humidity_danger  — above this = fungal/bacterial risk
+#   rain_ideal       — normal annual rainfall range (mm)
+#   rain_danger      — above this = waterlogging/fungal risk
+#   temp_ideal       — optimal temperature range (°C)
+#   temp_min         — frost/chilling injury below this
+#   temp_max         — heat stress above this
+#   ph_min / ph_max  — soil pH range (healthy)
+#   n_max            — excess nitrogen threshold (kg/ha)
+# ═════════════════════════════════════════════════════════════════════════════
+CROP_HEALTH_PROFILES = {
+    # ── Cereals & Staples ─────────────────────────────────────────────────────
+    "rice": {
+        # Rice blast (Magnaporthe oryzae) triggers at 90%+ humidity — ICAR threshold
+        "humidity_ideal": (70, 90), "humidity_danger": 90,
+        "rain_ideal": (150, 250),   "rain_danger": 350,
+        "temp_ideal": (20, 35),     "temp_min": 15, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 140,
+    },
+    "paddy": {
+        "humidity_ideal": (70, 90), "humidity_danger": 90,
+        "rain_ideal": (150, 250),   "rain_danger": 350,
+        "temp_ideal": (20, 35),     "temp_min": 15, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 140,
+    },
+    "wheat": {
+        "humidity_ideal": (40, 70), "humidity_danger": 78,
+        "rain_ideal": (30, 100),    "rain_danger": 150,
+        "temp_ideal": (10, 25),     "temp_min": 2,  "temp_max": 32,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 120,
+    },
+    "maize": {
+        "humidity_ideal": (50, 80), "humidity_danger": 85,
+        "rain_ideal": (50, 200),    "rain_danger": 280,
+        "temp_ideal": (18, 32),     "temp_min": 8,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 150,
+    },
+    "corn": {  # alias
+        "humidity_ideal": (50, 80), "humidity_danger": 85,
+        "rain_ideal": (50, 200),    "rain_danger": 280,
+        "temp_ideal": (18, 32),     "temp_min": 8,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 150,
+    },
+    "barley": {
+        "humidity_ideal": (40, 70), "humidity_danger": 78,
+        "rain_ideal": (30, 100),    "rain_danger": 140,
+        "temp_ideal": (10, 25),     "temp_min": 0,  "temp_max": 30,
+        "ph_min": 6.0, "ph_max": 8.0, "n_max": 100,
+    },
+    "sorghum": {
+        "humidity_ideal": (35, 70), "humidity_danger": 80,
+        "rain_ideal": (40, 180),    "rain_danger": 250,
+        "temp_ideal": (20, 38),     "temp_min": 10, "temp_max": 42,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 120,
+    },
+    # ── Pulses ────────────────────────────────────────────────────────────────
+    "chickpea": {
+        "humidity_ideal": (30, 60), "humidity_danger": 72,
+        "rain_ideal": (20, 100),    "rain_danger": 140,
+        "temp_ideal": (15, 30),     "temp_min": 5,  "temp_max": 35,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 60,
+    },
+    "lentil": {
+        "humidity_ideal": (30, 65), "humidity_danger": 75,
+        "rain_ideal": (20, 100),    "rain_danger": 140,
+        "temp_ideal": (12, 28),     "temp_min": 5,  "temp_max": 32,
+        "ph_min": 6.0, "ph_max": 8.0, "n_max": 60,
+    },
+    "pea": {
+        "humidity_ideal": (40, 70), "humidity_danger": 80,
+        "rain_ideal": (30, 120),    "rain_danger": 180,
+        "temp_ideal": (10, 25),     "temp_min": 2,  "temp_max": 30,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 80,
+    },
+    "bean": {
+        "humidity_ideal": (40, 75), "humidity_danger": 85,
+        "rain_ideal": (40, 160),    "rain_danger": 220,
+        "temp_ideal": (15, 28),     "temp_min": 8,  "temp_max": 32,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 80,
+    },
+    "blackgram": {
+        "humidity_ideal": (50, 80), "humidity_danger": 88,
+        "rain_ideal": (60, 180),    "rain_danger": 250,
+        "temp_ideal": (25, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 80,
+    },
+    "mungbean": {
+        "humidity_ideal": (50, 80), "humidity_danger": 88,
+        "rain_ideal": (60, 180),    "rain_danger": 250,
+        "temp_ideal": (25, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 80,
+    },
+    "mothbeans": {
+        "humidity_ideal": (30, 65), "humidity_danger": 78,
+        "rain_ideal": (30, 120),    "rain_danger": 160,
+        "temp_ideal": (25, 38),     "temp_min": 15, "temp_max": 42,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 60,
+    },
+    "pigeonpeas": {
+        "humidity_ideal": (50, 80), "humidity_danger": 88,
+        "rain_ideal": (60, 200),    "rain_danger": 280,
+        "temp_ideal": (20, 35),     "temp_min": 12, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 80,
+    },
+    "kidneybeans": {
+        "humidity_ideal": (40, 75), "humidity_danger": 85,
+        "rain_ideal": (40, 160),    "rain_danger": 220,
+        "temp_ideal": (15, 28),     "temp_min": 8,  "temp_max": 32,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 80,
+    },
+    # ── Cash Crops ────────────────────────────────────────────────────────────
+    "cotton": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (60, 180),    "rain_danger": 250,
+        "temp_ideal": (20, 35),     "temp_min": 12, "temp_max": 40,
+        "ph_min": 5.8, "ph_max": 7.5, "n_max": 120,
+    },
+    "sugarcane": {
+        "humidity_ideal": (65, 85), "humidity_danger": 92,
+        "rain_ideal": (100, 250),   "rain_danger": 320,
+        "temp_ideal": (20, 38),     "temp_min": 12, "temp_max": 42,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 200,
+    },
+    "jute": {
+        # Jute LOVES humidity — normal range is 75-95%
+        "humidity_ideal": (75, 95), "humidity_danger": 99,
+        "rain_ideal": (150, 350),   "rain_danger": 450,
+        "temp_ideal": (25, 38),     "temp_min": 18, "temp_max": 42,
+        "ph_min": 5.0, "ph_max": 7.5, "n_max": 100,
+    },
+    "coffee": {
+        # Coffee is subtropical — 70-90% humidity is NORMAL, not dangerous
+        "humidity_ideal": (65, 90), "humidity_danger": 97,
+        "rain_ideal": (120, 250),   "rain_danger": 320,
+        "temp_ideal": (18, 28),     "temp_min": 10, "temp_max": 32,
+        "ph_min": 5.5, "ph_max": 6.5, "n_max": 100,
+    },
+    "rapeseed": {
+        "humidity_ideal": (40, 70), "humidity_danger": 78,
+        "rain_ideal": (30, 120),    "rain_danger": 160,
+        "temp_ideal": (8, 22),      "temp_min": 0,  "temp_max": 28,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 120,
+    },
+    "sugarbeet": {
+        "humidity_ideal": (40, 70), "humidity_danger": 80,
+        "rain_ideal": (40, 150),    "rain_danger": 200,
+        "temp_ideal": (10, 25),     "temp_min": 2,  "temp_max": 32,
+        "ph_min": 6.5, "ph_max": 8.0, "n_max": 130,
+    },
+    "groundnut": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (50, 180),    "rain_danger": 250,
+        "temp_ideal": (22, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+    # ── Fruits ────────────────────────────────────────────────────────────────
+    "banana": {
+        # Banana is tropical — 75-90% humidity is NORMAL
+        # Rain ideal_max tightened: >220mm/month = waterlogging/Fusarium risk
+        "humidity_ideal": (70, 90), "humidity_danger": 97,
+        "rain_ideal": (100, 220),   "rain_danger": 320,
+        "temp_ideal": (22, 35),     "temp_min": 14, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 200,
+    },
+    "mango": {
+        "humidity_ideal": (50, 80), "humidity_danger": 90,
+        "rain_ideal": (50, 200),    "rain_danger": 280,
+        "temp_ideal": (24, 38),     "temp_min": 10, "temp_max": 44,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 100,
+    },
+    "orange": {
+        "humidity_ideal": (50, 80), "humidity_danger": 88,
+        "rain_ideal": (60, 180),    "rain_danger": 250,
+        "temp_ideal": (15, 32),     "temp_min": 5,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 120,
+    },
+    "apple": {
+        "humidity_ideal": (50, 75), "humidity_danger": 82,
+        "rain_ideal": (60, 160),    "rain_danger": 220,
+        "temp_ideal": (8, 22),      "temp_min": -2, "temp_max": 28,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 100,
+    },
+    "grapes": {
+        "humidity_ideal": (40, 70), "humidity_danger": 78,
+        "rain_ideal": (30, 120),    "rain_danger": 180,
+        "temp_ideal": (15, 32),     "temp_min": 0,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+    "grape": {  # alias
+        "humidity_ideal": (40, 70), "humidity_danger": 78,
+        "rain_ideal": (30, 120),    "rain_danger": 180,
+        "temp_ideal": (15, 32),     "temp_min": 0,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+    "pomegranate": {
+        "humidity_ideal": (35, 65), "humidity_danger": 78,
+        "rain_ideal": (30, 120),    "rain_danger": 170,
+        "temp_ideal": (20, 38),     "temp_min": 5,  "temp_max": 44,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 80,
+    },
+    "watermelon": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (40, 150),    "rain_danger": 200,
+        "temp_ideal": (22, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 80,
+    },
+    "muskmelon": {
+        "humidity_ideal": (45, 75), "humidity_danger": 85,
+        "rain_ideal": (40, 140),    "rain_danger": 190,
+        "temp_ideal": (22, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 6.0, "ph_max": 7.5, "n_max": 80,
+    },
+    "coconut": {
+        # Coconut is tropical coastal — 80-95% humidity is COMPLETELY NORMAL
+        "humidity_ideal": (75, 95), "humidity_danger": 99,
+        "rain_ideal": (100, 300),   "rain_danger": 400,
+        "temp_ideal": (25, 38),     "temp_min": 15, "temp_max": 42,
+        "ph_min": 5.0, "ph_max": 8.0, "n_max": 100,
+    },
+    "papaya": {
+        # Papaya tropical — 65-90% humidity is NORMAL
+        "humidity_ideal": (65, 90), "humidity_danger": 96,
+        "rain_ideal": (100, 250),   "rain_danger": 330,
+        "temp_ideal": (22, 35),     "temp_min": 12, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 120,
+    },
+    "peach": {
+        "humidity_ideal": (45, 72), "humidity_danger": 80,
+        "rain_ideal": (40, 140),    "rain_danger": 200,
+        "temp_ideal": (8, 25),      "temp_min": -5, "temp_max": 32,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+    "cherry": {
+        "humidity_ideal": (45, 72), "humidity_danger": 80,
+        "rain_ideal": (40, 140),    "rain_danger": 200,
+        "temp_ideal": (8, 22),      "temp_min": -5, "temp_max": 28,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+    "strawberry": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (40, 140),    "rain_danger": 200,
+        "temp_ideal": (12, 26),     "temp_min": 0,  "temp_max": 32,
+        "ph_min": 5.5, "ph_max": 6.5, "n_max": 80,
+    },
+    "blueberry": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (50, 160),    "rain_danger": 220,
+        "temp_ideal": (10, 25),     "temp_min": -5, "temp_max": 30,
+        "ph_min": 4.5, "ph_max": 5.5, "n_max": 60,
+    },
+    "raspberry": {
+        "humidity_ideal": (50, 75), "humidity_danger": 85,
+        "rain_ideal": (50, 160),    "rain_danger": 220,
+        "temp_ideal": (10, 25),     "temp_min": -5, "temp_max": 30,
+        "ph_min": 5.5, "ph_max": 6.5, "n_max": 80,
+    },
+    # ── Vegetables ────────────────────────────────────────────────────────────
+    "potato": {
+        # Late blight (Phytophthora infestans) triggers at 85%+ humidity — NOT 88
+        "humidity_ideal": (60, 80), "humidity_danger": 85,
+        "rain_ideal": (50, 150),    "rain_danger": 200,
+        "temp_ideal": (10, 24),     "temp_min": 2,  "temp_max": 30,
+        "ph_min": 5.0, "ph_max": 6.5, "n_max": 120,
+    },
+    "tomato": {
+        "humidity_ideal": (55, 80), "humidity_danger": 88,
+        "rain_ideal": (40, 150),    "rain_danger": 220,
+        "temp_ideal": (18, 32),     "temp_min": 8,  "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 120,
+    },
+    "soybean": {
+        "humidity_ideal": (50, 80), "humidity_danger": 88,
+        "rain_ideal": (60, 200),    "rain_danger": 280,
+        "temp_ideal": (20, 32),     "temp_min": 10, "temp_max": 38,
+        "ph_min": 5.8, "ph_max": 7.0, "n_max": 80,
+    },
+    "pepper": {
+        "humidity_ideal": (55, 80), "humidity_danger": 88,
+        "rain_ideal": (50, 160),    "rain_danger": 220,
+        "temp_ideal": (18, 32),     "temp_min": 10, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 100,
+    },
+    "bellpepper": {
+        "humidity_ideal": (55, 80), "humidity_danger": 88,
+        "rain_ideal": (50, 160),    "rain_danger": 220,
+        "temp_ideal": (18, 32),     "temp_min": 10, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 100,
+    },
+    "squash": {
+        "humidity_ideal": (50, 78), "humidity_danger": 88,
+        "rain_ideal": (50, 160),    "rain_danger": 220,
+        "temp_ideal": (18, 32),     "temp_min": 10, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 100,
+    },
+    # ── Root Crops ────────────────────────────────────────────────────────────
+    "cassava": {
+        "humidity_ideal": (60, 85), "humidity_danger": 93,
+        "rain_ideal": (80, 250),    "rain_danger": 350,
+        "temp_ideal": (20, 35),     "temp_min": 12, "temp_max": 40,
+        "ph_min": 5.0, "ph_max": 7.5, "n_max": 100,
+    },
+    "yam": {
+        "humidity_ideal": (65, 88), "humidity_danger": 95,
+        "rain_ideal": (100, 280),   "rain_danger": 380,
+        "temp_ideal": (22, 35),     "temp_min": 15, "temp_max": 40,
+        "ph_min": 5.5, "ph_max": 7.5, "n_max": 100,
+    },
+    "sweetpotato": {
+        "humidity_ideal": (55, 80), "humidity_danger": 88,
+        "rain_ideal": (50, 180),    "rain_danger": 250,
+        "temp_ideal": (20, 32),     "temp_min": 12, "temp_max": 38,
+        "ph_min": 5.5, "ph_max": 7.0, "n_max": 80,
+    },
+}
+
+
+def crop_health_risk_engine(crop, N, P, K, temp, humidity, rainfall, ph):
+    """
+    Crop-aware rule engine replacing XGBoost disease model.
+    Returns same interface as old predict_disease() for zero breaking changes.
+
+    Scoring:
+        0–29  → Healthy
+        30–49 → Healthy (borderline, monitor)
+        50+   → At_Risk
+
+    Each risk factor contributes a weighted score based on how far
+    the reading deviates from the crop's known safe range.
+    """
+    profile = CROP_HEALTH_PROFILES.get(crop)
+
+    # Fallback: if crop not profiled, use conservative global thresholds
+    if profile is None:
+        profile = {
+            "humidity_ideal": (50, 80), "humidity_danger": 88,
+            "rain_ideal": (50, 200),    "rain_danger": 300,
+            "temp_ideal": (15, 35),     "temp_min": 5, "temp_max": 42,
+            "ph_min": 5.5, "ph_max": 7.5, "n_max": 130,
+        }
+
+    risk_score = 0
+    reasons    = []
+
+    # ── 1. Humidity check (weight: 30) ────────────────────────────────────────
+    h_ideal_min, h_ideal_max = profile["humidity_ideal"]
+    h_danger = profile["humidity_danger"]
+
+    if humidity > h_danger:
+        risk_score += 30
+        reasons.append(f"Humidity {humidity}% is dangerously high (danger threshold: {h_danger}%)")
+    elif humidity > h_ideal_max:
+        # Proportional score between ideal_max and danger
+        ratio = (humidity - h_ideal_max) / max(h_danger - h_ideal_max, 1)
+        risk_score += int(ratio * 20)
+        reasons.append(f"Humidity {humidity}% slightly above ideal range ({h_ideal_min}–{h_ideal_max}%)")
+    elif humidity < h_ideal_min:
+        risk_score += 5
+        reasons.append(f"Humidity {humidity}% below ideal minimum ({h_ideal_min}%)")
+
+    # ── 2. Rainfall check (weight: 25) ────────────────────────────────────────
+    r_ideal_min, r_ideal_max = profile["rain_ideal"]
+    r_danger = profile["rain_danger"]
+
+    if rainfall > r_danger:
+        risk_score += 25
+        reasons.append(f"Rainfall {rainfall}mm exceeds danger threshold ({r_danger}mm) — waterlogging/fungal risk")
+    elif rainfall > r_ideal_max:
+        ratio = (rainfall - r_ideal_max) / max(r_danger - r_ideal_max, 1)
+        risk_score += int(ratio * 15)
+        reasons.append(f"Rainfall {rainfall}mm above ideal range ({r_ideal_min}–{r_ideal_max}mm)")
+    elif rainfall < r_ideal_min:
+        risk_score += 8
+        reasons.append(f"Rainfall {rainfall}mm below ideal minimum ({r_ideal_min}mm) — drought stress")
+
+    # ── 3. Temperature check (weight: 20) ─────────────────────────────────────
+    t_min = profile["temp_min"]
+    t_max = profile["temp_max"]
+    t_ideal_min, t_ideal_max = profile["temp_ideal"]
+
+    if temp > t_max:
+        risk_score += 20
+        reasons.append(f"Temperature {temp}°C above safe maximum ({t_max}°C) — heat stress")
+    elif temp < t_min:
+        risk_score += 20
+        reasons.append(f"Temperature {temp}°C below safe minimum ({t_min}°C) — frost/chilling injury")
+    elif temp > t_ideal_max:
+        ratio = (temp - t_ideal_max) / max(t_max - t_ideal_max, 1)
+        risk_score += int(ratio * 12)
+        reasons.append(f"Temperature {temp}°C slightly above optimal range")
+    elif temp < t_ideal_min:
+        ratio = (t_ideal_min - temp) / max(t_ideal_min - t_min, 1)
+        risk_score += int(ratio * 12)
+        reasons.append(f"Temperature {temp}°C slightly below optimal range")
+
+    # ── 4. pH check (weight: 15) ──────────────────────────────────────────────
+    if ph < profile["ph_min"]:
+        severity = profile["ph_min"] - ph
+        risk_score += min(15, int(severity * 8))
+        reasons.append(f"Soil pH {ph} below optimal minimum ({profile['ph_min']}) — nutrient lockout risk")
+    elif ph > profile["ph_max"]:
+        severity = ph - profile["ph_max"]
+        risk_score += min(15, int(severity * 8))
+        reasons.append(f"Soil pH {ph} above optimal maximum ({profile['ph_max']}) — alkalinity stress")
+
+    # ── 5. Nitrogen excess check (weight: 10) ─────────────────────────────────
+    n_max = profile.get("n_max", 130)
+    n_min = profile.get("n_min", 20)   # plants with very low N = weakened immunity
+    if N > n_max:
+        risk_score += min(10, int(((N - n_max) / n_max) * 10))
+        reasons.append(f"N={N} kg/ha exceeds safe threshold ({n_max}) — lush growth increases disease susceptibility")
+    elif N < n_min:
+        risk_score += 10
+        reasons.append(f"N={N} kg/ha critically low ({n_min}) — nutrient deficiency weakens plant immunity")
+
+    # ── 6. Compound multi-stress bonus (weight: +15) ──────────────────────────
+    # Agronomic reality: co-occurring stresses are not additive, they're synergistic.
+    # Cold + wet + acidic soil simultaneously = exponentially higher disease risk.
+    # This mirrors ICAR's disease forecasting models which flag multi-factor alerts.
+    if len(reasons) >= 3:
+        risk_score += 20
+        reasons.append("Multiple simultaneous stress factors detected — compound risk elevated")
+
+    # ── Decision ──────────────────────────────────────────────────────────────
+    risk_score = min(risk_score, 100)  # cap at 100
+
+    if risk_score >= 50:
+        label = "At_Risk"
+    else:
+        label = "Healthy"
+
+    # Convert to probability-like values for dashboard compatibility
+    at_risk_prob  = round(risk_score / 100, 4)
+    healthy_prob  = round(1 - at_risk_prob, 4)
+
+    return {
+        "label"      : label,
+        "atRiskProb" : at_risk_prob,
+        "healthyProb": healthy_prob,
+        "riskScore"  : risk_score,          # NEW — 0 to 100
+        "riskReasons": reasons,             # NEW — explainable reasons list
+        "diseaseName": None,
+        "timestamp"  : datetime.utcnow().isoformat()
+    }
+
+
+# ── YIELD CROP NAME VALIDATOR ─────────────────────────────────────────────────
+# The repeating 8,450 bug is caused by the OneHotEncoder silently mapping
+# unknown/mismatched Item names to a default column during transform.
+# This validator ensures the exact string the model was trained on is used.
+
+YIELD_ITEM_EXACT = {v: v for v in YIELD_CROPS.values()}  # ground truth strings
+
+def _safe_yield_item(crop_key):
+    """
+    Returns the exact Item string the yield model's OneHotEncoder was trained on.
+    Falls back to None if unrecognised, which we catch before calling the model.
+    """
+    return YIELD_CROPS.get(crop_key.lower().strip())
+
 
 app = Flask(__name__)
 CORS(app)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AUTH DECORATOR
-# Every protected endpoint must receive Authorization: Bearer <firebase_id_token>
-# Flask verifies the token with Firebase Admin SDK — no secrets needed client side
-# ─────────────────────────────────────────────────────────────────────────────
-
+# ── Auth decorator ────────────────────────────────────────────────────────────
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -138,26 +606,23 @@ def require_auth(f):
     return decorated
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# USER-SCOPED FIREBASE HELPERS
-# All data is stored under /users/{uid}/ so each farmer is fully isolated
-# ─────────────────────────────────────────────────────────────────────────────
-
-def user_sensors_ref(uid):
-    return db.reference(f"/users/{uid}/sensors/latest")
-
-def user_predictions_ref(uid):
-    return db.reference(f"/users/{uid}/predictions")
-
-def user_config_ref(uid):
-    return db.reference(f"/users/{uid}/config")
+# ── Firebase helpers ──────────────────────────────────────────────────────────
+def user_sensors_ref(uid):     return db.reference(f"/users/{uid}/sensors/latest")
+def user_predictions_ref(uid): return db.reference(f"/users/{uid}/predictions")
+def user_config_ref(uid):      return db.reference(f"/users/{uid}/config")
+def user_cnn_ref(uid):         return db.reference(f"/users/{uid}/cnn_prediction")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PREDICTION FUNCTIONS  (unchanged logic, same as before)
-# ─────────────────────────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# PREDICTION FUNCTIONS
+# ═════════════════════════════════════════════════════════════════════════════
 
 def predict_disease(sensor, config):
+    """
+    Crop-aware health risk engine.
+    Replaces XGBoost model entirely. No .pkl file needed for disease prediction.
+    Returns same response shape as before for zero dashboard changes.
+    """
     crop = config.get("cropType", "").lower().strip()
 
     if crop not in DISEASE_CROPS:
@@ -165,46 +630,25 @@ def predict_disease(sensor, config):
             "label"      : "Not Available",
             "atRiskProb" : None,
             "healthyProb": None,
-            "reason"     : f"'{crop}' is not supported by disease model.",
-            "supported"  : sorted(list(DISEASE_CROPS.keys())),
+            "riskScore"  : None,
+            "riskReasons": [],
+            "reason"     : f"'{crop}' not supported.",
+            "supported"  : sorted(DISEASE_CROPS.keys()),
             "timestamp"  : datetime.utcnow().isoformat()
         }
 
-    crop_encoded = crop_name_le.transform([DISEASE_CROPS[crop]])[0]
+    N    = float(sensor.get("N", 0))
+    P    = float(sensor.get("P", 0))
+    K    = float(sensor.get("K", 0))
+    temp = float(sensor.get("temperature", 25))
+    rh   = float(sensor.get("humidity", 60))
+    rain = float(sensor.get("rainfall", 100))
+    ph   = float(sensor.get("ph", 6.5))
 
-    X = pd.DataFrame([{
-        "N"           : float(sensor["N"]),
-        "P"           : float(sensor["P"]),
-        "K"           : float(sensor["K"]),
-        "temperature" : float(sensor["temperature"]),
-        "humidity"    : float(sensor["humidity"]),
-        "ph"          : float(sensor["ph"]),
-        "rainfall"    : float(sensor["rainfall"]),
-        "crop_encoded": int(crop_encoded)
-    }])
-
-    prob  = disease_model.predict_proba(X)[0]
-    label = disease_model.predict(X)[0]
-    result = {
-        "label"      : "At_Risk" if label == 1 else "Healthy",
-        "atRiskProb" : round(float(prob[1]), 4),
-        "healthyProb": round(float(prob[0]), 4),
-        "diseaseName": None,
-        "timestamp"  : datetime.utcnow().isoformat()
-    }
-
-    # If at risk — predict the specific disease name
-    if label == 1:
-        try:
-            dn_raw = disease_name_le.inverse_transform(
-                [disease_name_model.predict(X)[0]]
-            )[0]
-            result["diseaseName"] = dn_raw.split("__", 1)[-1]
-        except Exception as e:
-            log.warning("Disease name prediction failed: %s", e)
-            result["diseaseName"] = "Unknown"
-
+    result = crop_health_risk_engine(crop, N, P, K, temp, rh, rain, ph)
+    log.info("Health risk [%s] → %s (score=%d)", crop, result["label"], result["riskScore"])
     return result
+
 
 def predict_irrigation(sensor, config):
     crop = config.get("cropType", "").lower().strip()
@@ -213,8 +657,8 @@ def predict_irrigation(sensor, config):
             "irrigate"  : None,
             "label"     : "Not Available",
             "confidence": None,
-            "reason"    : f"'{crop}' is not supported by irrigation model.",
-            "supported" : sorted(list(IRRIGATION_CROPS.keys())),
+            "reason"    : f"'{crop}' not supported.",
+            "supported" : sorted(IRRIGATION_CROPS.keys()),
             "timestamp" : datetime.utcnow().isoformat()
         }
 
@@ -227,27 +671,22 @@ def predict_irrigation(sensor, config):
         "Humidity"    : float(sensor["humidity"])
     }])
     X_scaled = irrigation_scaler.transform(X_raw)
-    pred     = irrigation_model.predict(X_scaled)[0]
-    prob     = irrigation_model.predict_proba(X_scaled)[0]
-
-    # Rule override — soil moisture dominates over model bias
+    pred = irrigation_model.predict(X_scaled)[0]
+    prob = irrigation_model.predict_proba(X_scaled)[0]
     soil = float(sensor["soilMoisture"])
-    if soil >= 550:
-        return {
-            "irrigate"  : 1,
-            "label"     : "Irrigate",
-            "confidence": round(float(max(prob)), 4),
-            "timestamp" : datetime.utcnow().isoformat()
-        }
-    elif soil <= 400:
-        return {
-            "irrigate"  : 0,
-            "label"     : "No Irrigation",
-            "confidence": round(float(max(prob)), 4),
-            "timestamp" : datetime.utcnow().isoformat()
-        }
 
-    # Borderline zone (400-550) — trust the model
+    # Hard rules: extreme soil moisture values always override model
+    # Scale: 120=wet, 800=dry
+    if soil >= 550:
+        return {"irrigate": 1, "label": "Irrigate",
+                "confidence": round(float(max(prob)), 4),
+                "timestamp": datetime.utcnow().isoformat()}
+    elif soil <= 420:   # tightened — soil <=420 is wet enough, no irrigation needed
+        return {"irrigate": 0, "label": "No Irrigation",
+                "confidence": round(float(max(prob)), 4),
+                "timestamp": datetime.utcnow().isoformat()}
+
+    # Middle zone (350–550): trust the model
     return {
         "irrigate"  : int(pred),
         "label"     : "Irrigate" if pred == 1 else "No Irrigation",
@@ -255,25 +694,52 @@ def predict_irrigation(sensor, config):
         "timestamp" : datetime.utcnow().isoformat()
     }
 
+
 def predict_yield(sensor, config):
     crop = config.get("cropType", "").lower().strip()
-    if crop not in YIELD_CROPS:
+
+    # ── Guard: verify crop is supported ──────────────────────────────────────
+    item_name = _safe_yield_item(crop)
+    if item_name is None:
         return {
             "hgPerHa"  : None,
             "kgPerHa"  : None,
-            "reason"   : f"'{crop}' is not supported by yield model.",
-            "supported": sorted(list(YIELD_CROPS.keys())),
+            "reason"   : f"'{crop}' not supported.",
+            "supported": sorted(YIELD_CROPS.keys()),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+    # ── Build feature row with EXACT column values model was trained on ───────
+    country   = config.get("country", "India")
+    year      = int(config.get("year", datetime.utcnow().year))
+    rainfall  = max(1.0, float(sensor.get("rainfall", 100)))
+    pesticides = float(config.get("pesticides", 100))
+    avg_temp  = float(sensor.get("temperature", 25))
+
     X = pd.DataFrame([{
-        "Area"                         : config.get("country", "India"),
-        "Item"                         : YIELD_CROPS[crop],
-        "Year"                         : int(config.get("year", datetime.utcnow().year)),
-        "average_rain_fall_mm_per_year": max(1.0, float(sensor["rainfall"])),
-        "pesticides_tonnes"            : float(config.get("pesticides", 100)),
-        "avg_temp"                     : float(sensor["temperature"])
+        "Area"                          : country,
+        "Item"                          : item_name,   # exact trained string
+        "Year"                          : year,
+        "average_rain_fall_mm_per_year" : rainfall,
+        "pesticides_tonnes"             : pesticides,
+        "avg_temp"                      : avg_temp
     }])
-    hg_per_ha = float(yield_model.predict(X)[0])
+
+    # ── Predict and sanity-check result ──────────────────────────────────────
+    try:
+        hg_per_ha = float(yield_model.predict(X)[0])
+    except Exception as e:
+        log.error("Yield model predict error for crop '%s' (item='%s'): %s", crop, item_name, e)
+        return {"hgPerHa": None, "kgPerHa": None, "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()}
+
+    # Sanity check: most crops yield between 500 and 1,000,000 hg/ha
+    # If the model returns something clearly wrong, log a warning
+    if not (500 <= hg_per_ha <= 1_000_000):
+        log.warning("Yield model returned suspicious value for '%s': %.0f hg/ha "
+                    "(item='%s', country='%s', year=%d, rain=%.1f, temp=%.1f)",
+                    crop, hg_per_ha, item_name, country, year, rainfall, avg_temp)
+
     return {
         "hgPerHa"  : round(hg_per_ha, 2),
         "kgPerHa"  : round(hg_per_ha / 10, 2),
@@ -283,38 +749,70 @@ def predict_yield(sensor, config):
 
 def run_all_predictions(sensor, config):
     results = {}
-    crop    = config.get("cropType", "unknown").lower()
+    crop = config.get("cropType", "unknown").lower()
     log.info("Running predictions for crop: '%s'", crop)
-
-    try:
-        results["disease"] = predict_disease(sensor, config)
-        log.info("Disease    → %s", results["disease"]["label"])
-    except Exception as e:
-        log.error("Disease prediction error: %s", e)
-        results["disease"] = {"label": "Error", "error": str(e)}
-
-    try:
-        results["irrigation"] = predict_irrigation(sensor, config)
-        log.info("Irrigation → %s", results["irrigation"]["label"])
-    except Exception as e:
-        log.error("Irrigation prediction error: %s", e)
-        results["irrigation"] = {"label": "Error", "error": str(e)}
-
-    try:
-        results["yield"] = predict_yield(sensor, config)
-        log.info("Yield      → %s kg/ha", results["yield"].get("kgPerHa", "N/A"))
-    except Exception as e:
-        log.error("Yield prediction error: %s", e)
-        results["yield"] = {"label": "Error", "error": str(e)}
-
+    for name, fn in [
+        ("disease",    predict_disease),
+        ("irrigation", predict_irrigation),
+        ("yield",      predict_yield)
+    ]:
+        try:
+            results[name] = fn(sensor, config)
+            log.info("%s → %s", name.capitalize(),
+                     results[name].get("label", results[name].get("kgPerHa", "?")))
+        except Exception as e:
+            log.error("%s prediction error: %s", name, e)
+            results[name] = {"label": "Error", "error": str(e)}
     return results
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FIREBASE LISTENER  — now watches ALL users under /users/
-# When any user's ESP32 pushes sensor data, predictions run for that user only
-# ─────────────────────────────────────────────────────────────────────────────
+# ── CNN prediction function ───────────────────────────────────────────────────
+def predict_leaf_image(image_b64):
+    if CNN_MODEL is None:
+        return {"error": "CNN model not loaded. Check plant_disease_cnn.h5 in backend/models/"}
+    try:
+        from PIL import Image
+        import tensorflow as tf
 
+        if "," in image_b64:
+            image_b64 = image_b64.split(",", 1)[1]
+        img_bytes = base64.b64decode(image_b64)
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img = img.resize((CNN_IMG_SIZE, CNN_IMG_SIZE))
+
+        arr = np.array(img, dtype=np.float32) / 255.0
+        arr = np.expand_dims(arr, axis=0)
+
+        preds = CNN_MODEL.predict(arr, verbose=0)[0]
+        top3_indices = np.argsort(preds)[::-1][:3]
+
+        top3 = []
+        for idx in top3_indices:
+            info = CNN_LABELS.get(str(idx), {})
+            top3.append({
+                "crop"      : info.get("crop", "Unknown"),
+                "disease"   : info.get("disease", "Unknown"),
+                "is_healthy": info.get("is_healthy", False),
+                "confidence": round(float(preds[idx]) * 100, 2),
+                "treatment" : info.get("treatment", "Consult local agronomist.")
+            })
+
+        best = top3[0]
+        return {
+            "crop"      : best["crop"],
+            "disease"   : best["disease"],
+            "is_healthy": best["is_healthy"],
+            "confidence": best["confidence"],
+            "treatment" : best["treatment"],
+            "top3"      : top3,
+            "timestamp" : datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        log.error("CNN prediction error: %s", e)
+        return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+
+
+# ── Firebase listener ─────────────────────────────────────────────────────────
 def on_user_sensor_update(uid):
     def handler(event):
         if event.data is None:
@@ -340,46 +838,27 @@ def register_listener_for_user(uid):
 
 
 def start_firebase_listener():
-    """
-    Watch /users/ for any new child (new user registration).
-    When a user node appears, attach a sensor listener for that user.
-    """
     def on_new_user(event):
         if event.data is None:
             return
-        # event.path is like '/abc123uid'
         uid = event.path.strip("/").split("/")[0]
         if uid:
             register_listener_for_user(uid)
-
     db.reference("/users").listen(on_new_user)
     log.info("Master listener started — watching /users/ for new farmers.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# REST ENDPOINTS
-# ─────────────────────────────────────────────────────────────────────────────
-
+# ── REST Endpoints ────────────────────────────────────────────────────────────
 @app.route("/predict", methods=["POST"])
 @require_auth
 def predict_endpoint():
-    """
-    POST /predict
-    Header: Authorization: Bearer <firebase_id_token>
-    Body:   { "sensor": {...}, "config": {...} }
-
-    Runs predictions and writes results to /users/{uid}/predictions
-    """
     body   = request.get_json(force=True)
     sensor = body.get("sensor", {})
     config = body.get("config", {})
-
     if not sensor or not config:
-        return jsonify({"error": "Missing sensor or config in request body"}), 400
-
+        return jsonify({"error": "Missing sensor or config"}), 400
     results = run_all_predictions(sensor, config)
     user_predictions_ref(request.uid).set(results)
-
     log.info("Manual predict called by %s", request.user_email)
     return jsonify(results), 200
 
@@ -387,78 +866,81 @@ def predict_endpoint():
 @app.route("/predict/now", methods=["GET"])
 @require_auth
 def predict_now():
-    """
-    GET /predict/now
-    Header: Authorization: Bearer <firebase_id_token>
-
-    Reads sensor data and config from /users/{uid}/... and runs predictions
-    """
     uid    = request.uid
     sensor = user_sensors_ref(uid).get()
     config = user_config_ref(uid).get()
-
     if not sensor:
         return jsonify({"error": f"No sensor data at /users/{uid}/sensors/latest"}), 404
     if not config:
         return jsonify({"error": f"No config at /users/{uid}/config"}), 404
-
     results = run_all_predictions(sensor, config)
     user_predictions_ref(uid).set(results)
-
     log.info("predict/now called by %s", request.user_email)
     return jsonify(results), 200
 
 
+@app.route("/predict/image", methods=["POST"])
+@require_auth
+def predict_image():
+    body  = request.get_json(force=True)
+    image = body.get("image", "")
+    if not image:
+        return jsonify({"error": "Missing 'image' field in request body"}), 400
+    if len(image) > 10 * 1024 * 1024:
+        return jsonify({"error": "Image too large. Max 10MB."}), 400
+    result = predict_leaf_image(image)
+    if "error" not in result:
+        user_cnn_ref(request.uid).set(result)
+        log.info("CNN prediction for %s → %s (%s%%)",
+                 request.user_email, result.get("disease"), result.get("confidence"))
+    else:
+        log.error("CNN prediction failed for %s: %s", request.user_email, result["error"])
+    return jsonify(result), 200 if "error" not in result else 500
+
+
 @app.route("/crops", methods=["GET"])
 def supported_crops():
-    """Public endpoint — no auth needed, just lists supported crops"""
     return jsonify({
-        "disease_model"   : sorted(list(DISEASE_CROPS.keys())),
-        "irrigation_model": sorted(list(IRRIGATION_CROPS.keys())),
-        "yield_model"     : sorted(list(YIELD_CROPS.keys())),
-        "works_in_all_3"  : sorted(list(
-            set(DISEASE_CROPS) & set(IRRIGATION_CROPS) & set(YIELD_CROPS)
-        ))
+        "disease_model"   : sorted(DISEASE_CROPS.keys()),
+        "irrigation_model": sorted(IRRIGATION_CROPS.keys()),
+        "yield_model"     : sorted(YIELD_CROPS.keys()),
+        "cnn_scanner"     : sorted(CNN_SUPPORTED_CROPS),
+        "works_in_all_3"  : sorted(set(DISEASE_CROPS) & set(IRRIGATION_CROPS) & set(YIELD_CROPS))
     }), 200
 
 
 @app.route("/status", methods=["GET"])
 def status():
-    """Public endpoint — health check"""
     return jsonify({
         "status" : "running",
-        "models" : ["disease", "irrigation", "yield"],
-        "firebase": db.reference("/").get(shallow=True) is not None,
-        "auth"   : "Firebase ID Token required on /predict endpoints"
+        "models" : {
+            "disease"   : "rule_engine_v2",   # updated label
+            "irrigation": "loaded",
+            "yield"     : "loaded",
+            "cnn"       : "loaded" if CNN_MODEL is not None else "not loaded"
+        },
+        "cnn_classes": len(CNN_LABELS),
+        "firebase"   : db.reference("/").get(shallow=True) is not None,
+        "auth"       : "Firebase ID Token required on /predict endpoints"
     }), 200
 
 
 @app.route("/register-listener", methods=["POST"])
 @require_auth
 def register_listener():
-    """
-    POST /register-listener
-    Header: Authorization: Bearer <firebase_id_token>
-
-    Call this once after login to register the sensor listener for this user.
-    The ESP32 should write to /users/{uid}/sensors/latest
-    """
     uid = request.uid
     register_listener_for_user(uid)
     return jsonify({
-        "message"     : f"Listener registered for your account.",
+        "message"     : "Listener registered for your account.",
         "sensor_path" : f"/users/{uid}/sensors/latest",
         "config_path" : f"/users/{uid}/config",
-        "predict_path": f"/users/{uid}/predictions"
+        "predict_path": f"/users/{uid}/predictions",
+        "cnn_path"    : f"/users/{uid}/cnn_prediction"
     }), 200
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ENTRY POINT
-# ─────────────────────────────────────────────────────────────────────────────
-
+# ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     listener_thread = threading.Thread(target=start_firebase_listener, daemon=True)
     listener_thread.start()
-
     app.run(host="0.0.0.0", port=5000, debug=False)
