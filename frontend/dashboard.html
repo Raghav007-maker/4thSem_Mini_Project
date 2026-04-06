@@ -1299,6 +1299,7 @@
     .save-btn:hover {
       background: var(--green2)
     }
+
     /* LAYOUT */
     .content {
       padding: 1.5rem 2rem;
@@ -1386,6 +1387,85 @@
 
       .hero-badge {
         display: none
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    #cnn-dropzone:hover {
+      border-color: var(--blue);
+      background: rgba(56, 189, 248, 0.04) !important
+    }
+
+    #cnn-grid {
+      grid-template-columns: 1fr 1fr
+    }
+
+    @media(max-width:700px) {
+      #cnn-grid {
+        grid-template-columns: 1fr
+      }
+    }
+
+    @media(max-width:600px) {
+      #live-clock {
+        display: none
+      }
+
+      .demo-label {
+        display: none
+      }
+
+      .nav {
+        padding: 0 1rem
+      }
+
+      .hero {
+        height: 180px
+      }
+
+      .hero-content {
+        padding: 1.5rem
+      }
+
+      .hero-crop {
+        font-size: 2.5rem
+      }
+
+      .content {
+        padding: 1rem
+      }
+
+      .sensor-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        min-width: unset !important
+      }
+
+      .sensor-card {
+        height: 160px
+      }
+
+      .sc-val {
+        font-size: 1.5rem
+      }
+
+      .ai-grid {
+        grid-template-columns: 1fr !important
+      }
+
+      .form-row {
+        grid-template-columns: 1fr
+      }
+    }
+
+    @media(min-width:601px) and (max-width:900px) {
+      .sensor-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        min-width: unset !important
       }
     }
   </style>
@@ -1941,7 +2021,133 @@
           <span id="c-year" style="font-size:0.75rem;font-weight:600;color:var(--text)">--</span>
         </div>
       </div>
+      <!-- ══ CNN START ══ -->
+      <div class="sec-label">
+        <div class="sec-dot" style="background:var(--blue)"></div>Leaf Disease Scanner · CNN
+      </div>
 
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:1rem;overflow:hidden">
+        <div
+          style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem">
+          <div>
+            <div style="font-size:0.82rem;font-weight:600;color:var(--text)">Plant Leaf Scanner</div>
+            <div style="font-size:0.68rem;color:var(--muted);margin-top:0.2rem">Take a clear photo of a leaf — CNN
+              identifies the exact disease (99.7% accuracy)</div>
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+            <span
+              style="font-size:0.62rem;padding:0.2rem 0.6rem;border-radius:99px;background:rgba(56,189,248,0.1);color:var(--blue);border:1px solid rgba(56,189,248,0.2)">19
+              crops supported</span>
+            <span id="cnn-crop-warning"
+              style="display:none;font-size:0.62rem;padding:0.2rem 0.6rem;border-radius:99px;background:rgba(234,179,8,0.1);color:var(--yellow);border:1px solid rgba(234,179,8,0.2)">⚠
+              Your crop may not be in scanner</span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0" id="cnn-grid">
+
+          <div style="padding:1.5rem;border-right:1px solid var(--border)">
+            <div
+              style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem">
+              Capture Leaf Photo</div>
+            <div id="cnn-dropzone" onclick="document.getElementById('cnn-file-input').click()"
+              style="border:2px dashed var(--border);border-radius:0.75rem;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;background:#0a0e0a">
+              <div id="cnn-placeholder" style="text-align:center;pointer-events:none">
+                <div style="font-size:2.5rem;margin-bottom:0.5rem;opacity:0.4">📷</div>
+                <div style="font-size:0.78rem;color:var(--muted);font-weight:500">Tap to take photo</div>
+                <div style="font-size:0.65rem;color:var(--muted2);margin-top:0.25rem">or upload from gallery</div>
+              </div>
+              <img id="cnn-preview" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:0.6rem" />
+            </div>
+            <input type="file" id="cnn-file-input" accept="image/*" capture="environment" style="display:none"
+              onchange="onCnnFileSelected(this)" />
+            <div style="display:flex;gap:0.5rem;margin-top:0.85rem">
+              <button onclick="document.getElementById('cnn-file-input').click()"
+                style="flex:1;padding:0.7rem;background:var(--green3);border:none;border-radius:0.6rem;color:white;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s">📷
+                Open Camera</button>
+              <button id="cnn-scan-btn" onclick="runCnnScan()" disabled
+                style="flex:1;padding:0.7rem;background:#0d120d;border:1px solid var(--border);border-radius:0.6rem;color:var(--muted);font-size:0.78rem;font-weight:600;cursor:not-allowed;transition:all 0.2s">🔬
+                Scan Leaf</button>
+            </div>
+            <div
+              style="margin-top:0.85rem;padding:0.65rem 0.85rem;background:#0d120d;border-radius:0.5rem;font-size:0.65rem;color:var(--muted);line-height:1.6">
+              Tips: Good lighting · Fill frame with leaf · Avoid blurry shots · Single leaf works best
+            </div>
+          </div>
+
+          <div style="padding:1.5rem">
+            <div id="cnn-idle"
+              style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;opacity:0.4">
+              <div style="font-size:3rem;margin-bottom:0.75rem">🌿</div>
+              <div style="font-size:0.78rem;color:var(--muted)">Scan result will appear here</div>
+            </div>
+            <div id="cnn-loading"
+              style="display:none;height:100%;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+              <div
+                style="width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem">
+              </div>
+              <div style="font-size:0.78rem;color:var(--muted)">Analysing leaf...</div>
+              <div style="font-size:0.65rem;color:var(--muted2);margin-top:0.25rem">CNN running on Flask backend</div>
+            </div>
+            <div id="cnn-result" style="display:none">
+              <div
+                style="font-size:0.65rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem">
+                Scan Result</div>
+              <div id="cnn-result-card"
+                style="padding:1rem;border-radius:0.75rem;border:1px solid var(--border);margin-bottom:1rem">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.75rem">
+                  <div>
+                    <div id="cnn-crop-name"
+                      style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.2rem">
+                      Crop</div>
+                    <div id="cnn-disease-name"
+                      style="font-family:'Space Grotesk',sans-serif;font-size:1.15rem;font-weight:700;color:white;line-height:1.2">
+                      --</div>
+                  </div>
+                  <span id="cnn-health-badge" class="ai-badge badge-green">HEALTHY</span>
+                </div>
+                <div
+                  style="font-size:0.6rem;color:var(--muted);margin-bottom:0.35rem;display:flex;justify-content:space-between">
+                  <span>Confidence</span><span id="cnn-conf-text" style="color:var(--blue)">--%</span>
+                </div>
+                <div style="height:4px;background:#1a261a;border-radius:99px;overflow:hidden;margin-bottom:0.85rem">
+                  <div id="cnn-conf-bar"
+                    style="height:100%;width:0%;background:var(--blue);border-radius:99px;transition:width 0.8s"></div>
+                </div>
+                <div
+                  style="font-size:0.65rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:0.35rem">
+                  Recommended Action</div>
+                <div id="cnn-treatment"
+                  style="font-size:0.72rem;color:var(--text);line-height:1.5;padding:0.6rem 0.75rem;background:#0d120d;border-radius:0.5rem">
+                  --</div>
+              </div>
+              <div
+                style="font-size:0.62rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem">
+                Other possibilities</div>
+              <div id="cnn-top3" style="display:flex;flex-direction:column;gap:0.3rem"></div>
+              <button onclick="resetCnnScanner()"
+                style="width:100%;margin-top:0.85rem;padding:0.6rem;background:transparent;border:1px solid var(--border);border-radius:0.5rem;color:var(--muted);font-size:0.75rem;cursor:pointer">↩
+                Scan Another Leaf</button>
+            </div>
+            <div id="cnn-error"
+              style="display:none;height:100%;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+              <div style="font-size:2.5rem;margin-bottom:0.75rem">⚠️</div>
+              <div id="cnn-error-msg" style="font-size:0.78rem;color:var(--red);margin-bottom:0.5rem">Scan failed</div>
+              <div style="font-size:0.65rem;color:var(--muted)">Make sure Flask backend is running</div>
+              <button onclick="resetCnnScanner()"
+                style="margin-top:0.85rem;padding:0.5rem 1.25rem;background:transparent;border:1px solid var(--border);border-radius:99px;color:var(--muted);font-size:0.72rem;cursor:pointer">Try
+                Again</button>
+            </div>
+          </div>
+
+        </div>
+        <div
+          style="padding:0.75rem 1.5rem;border-top:1px solid var(--border);background:#0a0e0a;font-size:0.62rem;color:var(--muted2)">
+          Supports: Apple · Corn · Grape · Orange · Peach · Bell Pepper · Potato · Soybean · Strawberry · Tomato ·
+          Cherry · Blueberry · Raspberry · Squash · Rice · Cotton · Mango · Wheat · Banana
+        </div>
+      </div>
+      <!-- ══ CNN END ══ -->
     </div>
 
     <footer
@@ -2113,6 +2319,7 @@
         options: { responsive: true, maintainAspectRatio: false, plugins: { tooltip: { enabled: false } } }
       });
     };
+
     // ── UPDATE SENSOR ─────────────────────────────────────────────────────────────
     const updateSensors = s => {
       if (!s) return;
@@ -2174,13 +2381,17 @@
         T('disease-rec', risk
           ? `${rp}% probability${diseaseName ? ' — ' + diseaseName : ''} — consider treatment.`
           : 'No intervention needed. Crop is healthy.');
-        if (db2) { db2.className = `ai-badge ${risk ? 'badge-red' : 'badge-green'}`; db2.innerText = risk ? 'HIGH RISK' : 'LOW RISK'; }
+        const db2 = document.getElementById('disease-badge');
+        if (db2) {
+          db2.className = `ai-badge ${risk ? 'badge-red' : 'badge-green'}`;
+          db2.innerText = risk ? 'HIGH RISK' : 'LOW RISK';
+        }
         const ds = document.getElementById('disease-status');
         if (ds) ds.style.color = risk ? '#ef4444' : '#4ade80';
         const dbar = document.getElementById('disease-bar');
         if (dbar) { dbar.style.width = `${rp}%`; dbar.style.background = risk ? '#ef4444' : '#4ade80'; }
         if (diseaseChart) { diseaseChart.data.datasets[0].data = [hp, rp]; diseaseChart.data.datasets[0].backgroundColor = [risk ? '#eab308' : '#4ade80', 'rgba(255,255,255,0.04)']; diseaseChart.update(); }
-        if(risk)addFeed('danger','Disease Risk Detected',`${rp}% probability${d.diseaseName ? ' — ' + d.diseaseName.replace(/_/g,' ') : ''} — consider fungicide treatment.`);
+        if (risk) addFeed('danger', 'Disease Risk Detected', `${rp}% probability${d.diseaseName ? ' — ' + d.diseaseName.replace(/_/g, ' ') : ''} — consider fungicide treatment.`);
       }
       const ir = p.irrigation || {};
       if (ir.label === 'Not Available') {
@@ -2247,6 +2458,7 @@
       const img = CROP_IMG[crop] || CROP_IMG.default;
       const hi = document.getElementById('hero-img');
       if (hi) hi.style.backgroundImage = `url('${img}')`;
+      checkCnnCropSupport();
     };
 
     // ── FEED ──────────────────────────────────────────────────────────────────────
@@ -2337,6 +2549,8 @@
       if (window._rainInterval) clearInterval(window._rainInterval);
       getLocation();
       window._rainInterval = setInterval(getLocation, 30 * 60 * 1000);
+      connectCnnListener(id);
+      db.ref(`/users/${id}/cnn_prediction`).on('value', () => { });
     };
 
     // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -2355,10 +2569,10 @@
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
+
       auth.signInWithPopup(provider)
         .then(result => {
           const u = result.user;
-          // Save profile on first Google login
           db.ref(`/users/${u.uid}/profile`).once('value').then(snap => {
             if (!snap.val()) {
               db.ref(`/users/${u.uid}/profile`).set({
@@ -2371,11 +2585,22 @@
           });
         })
         .catch(e => {
-          const msgs = { 'auth/popup-closed-by-user': 'Sign-in cancelled.', 'auth/popup-blocked': 'Popup blocked — please allow popups.', 'auth/cancelled-popup-request': '' };
+          const msgs = {
+            'auth/popup-closed-by-user': 'Sign-in cancelled.',
+            'auth/popup-blocked': 'Popup blocked — please allow popups for localhost.',
+            'auth/cancelled-popup-request': ''
+          };
           const msg = msgs[e.code] || e.message;
-          if (msg) { const err = document.getElementById('auth-err'); err.innerText = msg; err.style.display = 'block'; }
+          if (msg) {
+            document.getElementById('auth-wrap').style.display = 'flex';
+            const err = document.getElementById('auth-err');
+            err.innerText = msg; err.style.display = 'block';
+          }
         });
     }
+
+    // Handle Google redirect result on page load
+    auth.getRedirectResult().catch(() => { });
 
     function doLogin() {
       const email = document.getElementById('l-email').value.trim();
@@ -2617,7 +2842,137 @@
         if (uid) connectFirebase(uid);
       }
     }
+    // ── CNN LEAF SCANNER ──────────────────────────────────────────────────────────
+    const CNN_SUPPORTED = new Set([
+      'apple', 'blueberry', 'cherry', 'corn', 'maize', 'grape', 'grapes',
+      'orange', 'peach', 'bell pepper', 'pepper', 'potato', 'raspberry',
+      'soybean', 'squash', 'strawberry', 'tomato',
+      'rice', 'wheat', 'cotton', 'banana', 'mango'
+    ]);
 
+    let cnnImageB64 = null;
+
+    function checkCnnCropSupport() {
+      const crop = (document.getElementById('c-crop')?.innerText || '').toLowerCase().trim();
+      const warn = document.getElementById('cnn-crop-warning');
+      if (warn) warn.style.display = (crop && crop !== '--' && !CNN_SUPPORTED.has(crop)) ? 'inline-flex' : 'none';
+    }
+
+    function onCnnFileSelected(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      if (file.size > 10 * 1024 * 1024) { alert('Image too large. Max 10MB.'); return; }
+      const reader = new FileReader();
+      reader.onload = e => {
+        cnnImageB64 = e.target.result;
+        const preview = document.getElementById('cnn-preview');
+        const placeholder = document.getElementById('cnn-placeholder');
+        if (preview) { preview.src = cnnImageB64; preview.style.display = 'block'; }
+        if (placeholder) placeholder.style.display = 'none';
+        const btn = document.getElementById('cnn-scan-btn');
+        if (btn) {
+          btn.disabled = false;
+          btn.style.background = 'rgba(56,189,248,0.1)';
+          btn.style.borderColor = 'var(--blue)';
+          btn.style.color = 'var(--blue)';
+          btn.style.cursor = 'pointer';
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function runCnnScan() {
+      if (!cnnImageB64) return;
+      if (!uid) { alert('Please login first.'); return; }
+      setCnnState('loading');
+      try {
+        const tok = await auth.currentUser.getIdToken();
+        const resp = await fetch('http://localhost:5000/predict/image', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: cnnImageB64 })
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.error) { setCnnState('error', data.error || 'Prediction failed'); return; }
+        showCnnResult(data);
+      } catch (err) {
+        setCnnState('error', err.message || 'Network error — is Flask running?');
+      }
+    }
+
+    function showCnnResult(data) {
+      setCnnState('result');
+      const isHealthy = data.is_healthy;
+      const conf = data.confidence || 0;
+      const cropEl = document.getElementById('cnn-crop-name');
+      const diseaseEl = document.getElementById('cnn-disease-name');
+      if (cropEl) cropEl.innerText = data.crop || 'Unknown crop';
+      if (diseaseEl) diseaseEl.innerText = data.disease || 'Unknown';
+      const badge = document.getElementById('cnn-health-badge');
+      if (badge) {
+        badge.className = `ai-badge ${isHealthy ? 'badge-green' : 'badge-red'}`;
+        badge.innerText = isHealthy ? 'HEALTHY' : 'DISEASED';
+      }
+      const card = document.getElementById('cnn-result-card');
+      if (card) card.style.borderColor = isHealthy ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)';
+      const confBar = document.getElementById('cnn-conf-bar');
+      const confText = document.getElementById('cnn-conf-text');
+      if (confBar) {
+        confBar.style.width = `${conf}%`;
+        confBar.style.background = conf > 80 ? '#4ade80' : conf > 60 ? '#eab308' : '#ef4444';
+      }
+      if (confText) confText.innerText = `${conf.toFixed(1)}%`;
+      const treatment = document.getElementById('cnn-treatment');
+      if (treatment) treatment.innerText = data.treatment || 'Consult local agronomist.';
+      const top3El = document.getElementById('cnn-top3');
+      if (top3El && data.top3 && data.top3.length > 1) {
+        top3El.innerHTML = data.top3.slice(1).map(t => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.6rem;background:#0d120d;border-radius:0.4rem;font-size:0.67rem">
+        <span style="color:var(--text)">${t.crop} — ${t.disease}</span>
+        <span style="color:var(--muted);font-family:monospace">${t.confidence.toFixed(1)}%</span>
+      </div>`).join('');
+      }
+      const feedType = isHealthy ? 'success' : 'danger';
+      addFeed(feedType, 'Leaf Scan Complete',
+        isHealthy
+          ? `${data.crop} leaf looks healthy (${conf.toFixed(1)}% confidence)`
+          : `${data.disease} detected on ${data.crop} — ${conf.toFixed(1)}% confidence`
+      );
+    }
+
+    function setCnnState(state, errMsg) {
+      ['cnn-idle', 'cnn-loading', 'cnn-result', 'cnn-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      const target = document.getElementById(`cnn-${state}`);
+      if (target) target.style.display = (state === 'loading' || state === 'error') ? 'flex' : 'block';
+      if (state === 'error' && errMsg) {
+        const errEl = document.getElementById('cnn-error-msg');
+        if (errEl) errEl.innerText = errMsg;
+      }
+    }
+
+    function resetCnnScanner() {
+      cnnImageB64 = null;
+      const preview = document.getElementById('cnn-preview');
+      const placeholder = document.getElementById('cnn-placeholder');
+      const fileInput = document.getElementById('cnn-file-input');
+      if (preview) { preview.style.display = 'none'; preview.src = ''; }
+      if (placeholder) placeholder.style.display = 'block';
+      if (fileInput) fileInput.value = '';
+      const btn = document.getElementById('cnn-scan-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.style.background = '#0d120d';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = 'var(--muted)';
+        btn.style.cursor = 'not-allowed';
+      }
+      setCnnState('idle');
+    }
+    // ── END CNN ───────────────────────────────────────────────────────────────────
+    function connectCnnListener(id) { db.ref(`/users/${id}/cnn_prediction`).on('value', () => {}); }
     // ── INIT ──────────────────────────────────────────────────────────────────────
     window.onload = () => {
       document.getElementById('hero-img').style.backgroundImage = `url('${CROP_IMG.default}')`;
@@ -2631,4 +2986,3 @@
 </body>
 
 </html>
-
