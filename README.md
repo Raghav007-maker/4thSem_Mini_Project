@@ -1,458 +1,448 @@
 # 🌾 KISAAN AI — Precision Farming Intelligence Platform
 
-> AI Smart Agriculture · 4th Semester Mini Project · Team 57
+> **4th Semester Mini Project** | B.Tech CSE | 2024–25
+> Raghav Bansal · Anuj Kumar · Priya Shukla
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)](https://flask.palletsprojects.com)
+[![Firebase](https://img.shields.io/badge/Firebase-Realtime_DB-orange.svg)](https://firebase.google.com)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-FF6F00.svg)](https://tensorflow.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
 
 ## 📖 Overview
 
-KISAAN AI is a complete end-to-end precision farming platform that connects IoT sensors (ESP32) to a cloud-based AI backend. It collects real-time soil and environmental data, runs it through three machine learning models, and displays live predictions on a modern web dashboard — helping farmers make data-driven decisions about disease risk, irrigation, and expected crop yield.
+KISAAN AI is an IoT-powered smart agriculture platform that combines **real-time ESP32 sensor data** with **four AI models** to help Indian farmers make data-driven decisions about crop health, irrigation, and yield — all through a live web dashboard.
 
-**KISAAN** means *farmer* in Hindi — the name reflects the project's purpose of empowering Indian farmers with AI.
+The system is designed for the Indian agricultural context, covering **48 crops** with thresholds sourced from ICAR (Indian Council of Agricultural Research) agronomic profiles.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🌡️ **Live Sensor Dashboard** | Real-time NPK, pH, soil moisture, temperature, humidity with sparkline charts |
+| 🦠 **Crop Health Risk Engine** | Rule-based engine using ICAR thresholds — 48 crops, explainable risk scores |
+| 💧 **Irrigation Recommender** | GradientBoosting model + soil moisture hard rules — 25 crops |
+| 📈 **Yield Predictor** | RandomForest on FAOSTAT data — 23 crops, kg/ha output |
+| 🍃 **CNN Leaf Disease Scanner** | MobileNetV2 fine-tuned on PlantVillage + 5 Indian crops, 99.7% val accuracy |
+| 🔐 **Multi-user Auth** | Google OAuth + Email/Password via Firebase Authentication |
+| 📱 **Mobile Responsive** | Full dashboard on phone/tablet/desktop |
+| 🎭 **Demo Mode** | 4 cycling scenarios — works without ESP32 hardware |
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-ESP32 Sensors
-    │
-    │  writes every 30 seconds
-    ▼
-Firebase Realtime DB
-/users/{uid}/sensors/latest
-    │
-    │  Firebase listener (app.py)
-    ▼
-Flask ML Backend
-    │
-    ├──► Disease Model      → Healthy / At_Risk + disease name
-    ├──► Irrigation Model   → Irrigate / No Irrigation + confidence
-    └──► Yield Model        → kg/ha + hg/ha forecast
-    │
-    ▼
-Firebase Realtime DB
-/users/{uid}/predictions
-    │
-    ▼
-Web Dashboard (dashboard.html)
-Real-time display — isolated per farmer account
+┌─────────────────────────────────────────────────────────────────┐
+│                         ESP32 Device                            │
+│   DHT22 (temp/humidity) · Capacitive Soil · pH · NPK sensors   │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ Firebase Realtime DB
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              /users/{uid}/sensors/latest                        │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ Firebase listener (auto-triggers)
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Flask Backend (app.py)                        │
+│                                                                  │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────────┐  │
+│  │ Disease Risk │  │  Irrigation   │  │   Yield Predictor    │  │
+│  │   Engine     │  │  Recommender  │  │  (RandomForest)      │  │
+│  │ (Rule-based) │  │  (GBM + rules)│  │  FAOSTAT pipeline    │  │
+│  └──────────────┘  └───────────────┘  └──────────────────────┘  │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │          CNN Leaf Scanner  (MobileNetV2, 23 classes)     │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ Writes predictions to Firebase
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              /users/{uid}/predictions                           │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ Firebase real-time listener
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   dashboard.html                                 │
+│     Vanilla JS · Firebase SDK 9.23.0 · Chart.js                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📁 Folder Structure
+## 📁 Project Structure
 
 ```
-AI-Smart-Agriculture/
-├── .gitignore
-├── requirements.txt
-├── README.md
-│
-├── esp32/
-│   ├── esp32_sender.ino          ← Arduino code for ESP32 hardware
-│   ├── test_sensor.py            ← Simulate sensors without hardware
-│   └── test_all_models.py        ← Test all 3 models across 6 scenarios
+4thSem_Mini_Project/
 │
 ├── backend/
-│   ├── app.py                    ← Main Flask backend + Firebase listener
-│   ├── firebase-key.json         ← Firebase service account (gitignored)
+│   ├── app.py                        # Flask API + all prediction logic
+│   ├── firebase-key.json             # 🔒 gitignored — service account key
 │   └── models/
-│       ├── crop_disease_model.pkl
+│       ├── crop_disease_model.pkl    # XGBoost (kept as fallback)
 │       ├── disease_label_encoder.pkl
-│       ├── crop_disease_name_model.pkl
 │       ├── crop_name_encoder.pkl
-│       ├── disease_name_label_encoder.pkl
-│       ├── irrigation_model.pkl
-│       ├── scaler.pkl
-│       ├── label_encoder.pkl
-│       └── crop_yield_model.pkl
+│       ├── irrigation_model.pkl      # GradientBoosting (25 crops)
+│       ├── scaler.pkl                # StandardScaler for irrigation
+│       ├── label_encoder.pkl         # Crop encoder for irrigation
+│       ├── crop_yield_model.pkl      # RandomForest Pipeline (23 crops)
+│       ├── plant_disease_cnn.h5      # MobileNetV2, 23 classes, 99.7% acc
+│       └── cnn_class_labels.json     # {idx: {crop, disease, treatment}}
 │
-├── data/
-│   ├── raw/yield_df.csv
-│   └── processed/
+├── esp32/
+│   ├── sensor_upload.ino             # ESP32 firmware (Arduino)
+│   ├── test_all_models.py            # 50-scenario test suite
+│   └── test_new_scenarios.py         # 33-scenario unseen test suite
 │
 ├── notebooks/
-│   ├── crop_recommendation.ipynb       ← Disease model Phase 1
-│   ├── crop_recommendation_v2.ipynb    ← Disease model Phase 2 (active)
-│   ├── irrigation_final_pipeline.ipynb ← Irrigation model
-│   └── crop_yield_fixed.ipynb          ← Yield model
+│   ├── crop_recommendation_v3.ipynb  # Disease model training
+│   ├── irrigation_final_pipeline_v2.ipynb
+│   ├── crop_yield_fixed.ipynb
+│   ├── plant_disease_cnn.ipynb       # PlantVillage CNN training
+│   └── indian_crops_finetune.ipynb   # Fine-tuning for Indian crops
 │
-└── frontend/
-    ├── dashboard.html                  ← Main web dashboard
-    ├── firebase-config.js              ← Firebase credentials (gitignored)
-    └── firebase-config.example.js     ← Template — copy and fill in values
+├── frontend/
+│   ├── dashboard.html                # Full dashboard (single file)
+│   └── firebase-config.js            # 🔒 gitignored — Firebase web config
+│
+└── README.md                         # This file
 ```
 
 ---
 
-## 🤖 Machine Learning Models
+## 🤖 AI Models
 
-### Model 1 — Disease Risk Detection
+### Model 1 — Crop Health Risk Engine
+> Replaces XGBoost black-box with a transparent, explainable rule engine
 
-| Property | Value |
-|---|---|
-| Algorithm | RandomForestClassifier |
-| Task | Binary Classification — Healthy vs At_Risk |
-| Accuracy | 84.6% (Phase 1) |
-| ROC-AUC | 0.852 |
-| Features | N, P, K, temperature, humidity, ph, rainfall, crop_encoded |
-| Output | Healthy / At_Risk + probability + disease name |
-| Supported Crops | 49 crops (rice, maize, wheat, banana, mango, coffee, apple, grapes, and more) |
-| Notebook | `notebooks/crop_recommendation_v2.ipynb` |
+- **Approach:** ICAR-sourced agronomic profiles for 48 crops
+- **Inputs:** N, P, K, temperature, humidity, rainfall, pH, crop type
+- **Output:** `Healthy` / `At_Risk` label + risk score (0–100) + plain-English reasons
+- **Crops:** 48 (all major Indian crops including tropical crops like coconut, jute, papaya)
+- **Key design:** Crop-specific thresholds — coconut's "dangerous" humidity (99%) is different from wheat's (78%)
+- **Test accuracy:** 50/50 on original suite, 31/33 on unseen scenarios
 
-**Disease Name Prediction** — when At_Risk is detected the model also predicts the specific disease name (e.g. Magnaporthe oryzae, Puccinia sorghi) using a second RandomForest trained on crop-scoped labels (`crop__disease_name` format).
-
----
-
-### Model 2 — Smart Irrigation
-
-| Property | Value |
-|---|---|
-| Algorithm | GradientBoostingClassifier |
-| Task | Binary Classification — Irrigate vs No Irrigation |
-| Accuracy | 92.4% test, 91.5% CV |
-| ROC-AUC | 0.9796 |
-| Training Rows | 6,479 (augmented from 501 original) |
-| Features | CropType_enc, CropDays, SoilMoisture, temperature, Humidity |
-| Output | Irrigate / No Irrigation + confidence score |
-| Supported Crops | Wheat, Maize, Paddy, Potato, Sugarcane, Coffee, Groundnuts, Pulse, Garden Flowers |
-| Notebook | `notebooks/irrigation_final_pipeline.ipynb` |
-
-**Rule Override** — soil moisture is the dominant feature. If `soilMoisture >= 550` the model forces Irrigate. If `soilMoisture <= 400` it forces No Irrigation. The ML model handles borderline cases (400–550).
-
-> Soil moisture scale: 120–450 = wet, 500–800 = dry. ESP32 maps raw ADC using `map(raw, 4095, 0, 120, 800)`
-
----
-
-### Model 3 — Crop Yield Forecast
-
-| Property | Value |
-|---|---|
-| Algorithm | RandomForestRegressor in sklearn Pipeline with OneHotEncoder |
-| Task | Regression — predict crop yield in hg/ha |
-| Test R² | 0.9607 |
-| Train R² | 0.9845 |
-| MAE | 1,329 kg/ha |
-| Training Rows | 32,208 (OWID API + Kaggle combined) |
-| Features | Area (country), Item (crop), Year, rainfall, pesticides_tonnes, avg_temp |
-| Output | hg/ha + kg/ha |
-| Supported Crops | 23 crops (Bananas, Barley, Beans, Cassava, Coffee, Cotton, Groundnuts, Maize, Oranges, Palm oil, Peas, Potatoes, Rapeseed, Rice, Sorghum, Soybeans, Sugarbeet, Sugarcane, Sweet potatoes, Tomatoes, Wheat, Yams, Plantains) |
-| Notebook | `notebooks/crop_yield_fixed.ipynb` |
-
----
-
-## 🔥 Firebase Database Structure
-
+**Example output:**
 ```json
 {
-  "/users/{uid}/sensors/latest": {
-    "temperature": 28.5,
-    "humidity": 75.0,
-    "soilMoisture": 450,
-    "rainfall": 120.0,
-    "ph": 6.5,
-    "N": 50, "P": 40, "K": 35,
-    "timestamp": "2024-01-01T12:00:00Z"
-  },
-  "/users/{uid}/config": {
-    "cropType": "maize",
-    "country": "India",
-    "cropDays": 45,
-    "pesticides": 500,
-    "year": 2024
-  },
-  "/users/{uid}/predictions": {
-    "disease": {
-      "label": "At_Risk",
-      "atRiskProb": 0.81,
-      "healthyProb": 0.19,
-      "diseaseName": "Magnaporthe_oryzae",
-      "timestamp": "2024-01-01T12:00:05Z"
-    },
-    "irrigation": {
-      "irrigate": 1,
-      "label": "Irrigate",
-      "confidence": 0.95,
-      "timestamp": "2024-01-01T12:00:05Z"
-    },
-    "yield": {
-      "hgPerHa": 45861.9,
-      "kgPerHa": 4586.19,
-      "timestamp": "2024-01-01T12:00:05Z"
-    }
-  },
-  "/users/{uid}/location": {
-    "lat": 28.98,
-    "lon": 77.71,
-    "updatedAt": "2024-01-01T12:00:00Z"
-  },
-  "/users/{uid}/profile": {
-    "name": "Farmer Name",
-    "email": "farmer@example.com",
-    "photoURL": "...",
-    "createdAt": "2024-01-01T00:00:00Z"
-  }
-}
-```
-
-Each farmer's data is fully isolated under their Firebase UID. Firebase security rules ensure a user can only read and write their own data.
-
----
-
-## 🔧 Hardware — ESP32 Sensor Setup
-
-| Sensor | Parameter | GPIO Pin | Notes |
-|---|---|---|---|
-| DHT22 | Temperature + Humidity | GPIO 4 | Direct, no conversion |
-| Capacitive Soil Moisture | soilMoisture | GPIO 34 (Analog) | `map(raw, 4095, 0, 120, 800)` |
-| pH Sensor | ph | GPIO 35 (Analog) | Calibrate with buffer solutions |
-| Rain Gauge | rainfall | Replaced by Weather API | Open-Meteo API — no hardware needed |
-| NPK Sensor | N, P, K | Removed | Using crop-based default values |
-
-**Critical soil moisture mapping:**
-```cpp
-// Higher ADC = drier soil on capacitive sensor
-int soilMoisture = map(soilRaw, 4095, 0, 120, 800);
-// 120 = fully wet   → No Irrigation
-// 800 = bone dry    → Irrigate immediately
-```
-
----
-
-## 🌧️ Weather API Integration
-
-Rainfall data is fetched automatically from **Open-Meteo API** (free, no API key required) using the farmer's browser geolocation. No rain gauge hardware needed.
-
-```
-https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=precipitation_sum&forecast_days=1&timezone=auto
-```
-
-- Daily rainfall in mm is converted to annual mm/yr for model compatibility
-- Location is saved to Firebase so repeat logins don't need to ask again
-- Falls back to saved location if geolocation is denied
-- Updates every 30 minutes automatically
-
----
-
-## 🔒 Security
-
-| Feature | Status |
-|---|---|
-| Firebase API key removed from source code | ✅ Done |
-| API key stored in `firebase-config.js` (gitignored) | ✅ Done |
-| API key restricted to `localhost` in Google Cloud Console | ✅ Done |
-| Firebase Auth — Email/Password | ✅ Done |
-| Firebase Auth — Google Sign-In | ✅ Done |
-| Flask endpoints protected with Firebase ID token verification | ✅ Done |
-| Per-user Firebase data isolation (`/users/{uid}/...`) | ✅ Done |
-| Firebase security rules — users can only access own data | ✅ Done |
-| `firebase-key.json` gitignored | ✅ Done |
-| Model `.pkl` files gitignored | ✅ Done |
-
-**Firebase Security Rules:**
-```json
-{
-  "rules": {
-    "users": {
-      "$uid": {
-        ".read":  "$uid === auth.uid",
-        ".write": "$uid === auth.uid"
-      }
-    }
-  }
+  "label": "At_Risk",
+  "riskScore": 72,
+  "riskReasons": [
+    "Humidity 91% dangerously high (danger threshold: 90%)",
+    "Rainfall 280mm above ideal range (150–250mm)",
+    "N=12 kg/ha critically low — nutrient deficiency weakens plant immunity",
+    "Multiple simultaneous stress factors — compound risk elevated"
+  ]
 }
 ```
 
 ---
 
-## 🚀 Setup & Running
+### Model 2 — Irrigation Recommender
+- **Algorithm:** GradientBoostingClassifier
+- **Features:** CropType, CropDays, SoilMoisture, Temperature, Humidity
+- **Crops:** 25 Indian crops
+- **Soil moisture scale:** 120 = wet, 800 = dry (capacitive sensor, inverted)
+- **Hard rules override model:**
+  - `soil ≥ 550` → **Irrigate** (dry)
+  - `soil ≤ 420` → **No Irrigation** (wet)
+  - `420 < soil < 550` → Trust GBM model
+- **Test accuracy:** 50/50 on original suite
+
+---
+
+### Model 3 — Yield Predictor
+- **Algorithm:** RandomForestRegressor with OneHotEncoder Pipeline
+- **Data source:** FAOSTAT via Our World in Data
+- **Features:** Country, Crop (Item), Year, Annual Rainfall, Pesticides, Avg Temperature
+- **Crops:** 23 internationally tracked crops
+- **Output:** kg/ha estimate
+- **Sanity check:** Flags predictions outside 500–1,000,000 hg/ha
+
+---
+
+### Model 4 — CNN Leaf Disease Scanner
+- **Architecture:** MobileNetV2 (Transfer Learning, ImageNet weights)
+- **Base dataset:** PlantVillage (54,000+ images, 38 classes)
+- **Fine-tuned for Indian crops:**
+
+| Crop | Dataset |
+|------|---------|
+| Rice | `nirmalsankalana/rice-leaf-disease-image` |
+| Wheat | `olyadgetch/wheat-leaf-dataset` |
+| Cotton | `seroshkarim/cotton-leaf-disease-dataset` |
+| Banana | `shifatearman/bananalsd` |
+| Mango | `warcoder/mango-leaf-disease-dataset` |
+
+- **Final model:** 23 disease classes across 19 crops
+- **Validation accuracy:** 99.7% | Top-3 accuracy: 99.9%
+- **Input:** 224×224 RGB image (base64 via API)
+- **Output:** Top-3 predictions with crop, disease name, confidence, treatment advice
+
+---
+
+## 🚀 Setup & Installation
 
 ### Prerequisites
+- Python 3.10+
+- Node.js (for Live Server extension in VS Code)
+- Firebase project with Realtime Database enabled
+- Google Cloud project with OAuth 2.0 configured
 
+### 1. Clone the Repository
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/Raghav007-maker/4thSem_Mini_Project.git
+cd 4thSem_Mini_Project
 ```
 
-**requirements.txt:**
-```
-flask
-flask-cors
-firebase-admin
-scikit-learn
-pandas
-numpy
-joblib
-```
-
-### Step 1 — Firebase Setup
-
-1. Create project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Enable Realtime Database and Email/Password + Google Authentication
-3. Download service account key → save as `backend/firebase-key.json`
-4. Apply security rules from `firebase-rules.json` in Firebase Console → Realtime Database → Rules
-
-### Step 2 — Frontend Config
-
+### 2. Backend Setup
 ```bash
-cp frontend/firebase-config.example.js frontend/firebase-config.js
-# Edit firebase-config.js and fill in your Firebase credentials
+cd backend
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+# macOS/Linux
+source venv/bin/activate
+
+pip install flask flask-cors firebase-admin joblib pandas numpy \
+            scikit-learn xgboost tensorflow pillow
 ```
 
-### Step 3 — Generate ML Models
+### 3. Firebase Configuration
+Place your Firebase service account key at:
+```
+backend/firebase-key.json
+```
+> Download from Firebase Console → Project Settings → Service Accounts → Generate New Private Key
 
-Run notebooks in this order:
-
-```bash
-jupyter notebook
+### 4. Frontend Configuration
+Create `frontend/firebase-config.js`:
+```javascript
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
 ```
 
-1. `notebooks/irrigation_final_pipeline.ipynb` — run all cells
-2. `notebooks/crop_yield_fixed.ipynb` — run all cells
-3. `notebooks/crop_recommendation_v2.ipynb` — run all cells
-
-All `.pkl` files save to `backend/models/` automatically.
-
-### Step 4 — Start Flask Backend
-
+### 5. Run the Backend
 ```bash
 cd backend
 python app.py
 ```
 
-Wait for:
+Expected startup output:
 ```
-All models loaded
-Firebase listener started
+09:00:00  INFO  Loading sklearn models...
+09:00:02  INFO  Sklearn models loaded.
+09:00:02  INFO  Master listener started — watching /users/ for new farmers.
+ * Running on http://0.0.0.0:5000
+09:00:07  INFO  CNN model loaded — 23 classes.
 ```
 
-### Step 5 — Run Dashboard
+### 6. Run the Frontend
+Open `frontend/dashboard.html` with VS Code Live Server on port 8080.
 
+---
+
+## 🔌 API Reference
+
+All prediction endpoints require Firebase ID Token in the `Authorization` header:
+```
+Authorization: Bearer <firebase_id_token>
+```
+
+### POST `/predict`
+Manual prediction from sensor + config payload.
+```json
+{
+  "sensor": {
+    "temperature": 28, "humidity": 75, "soilMoisture": 350,
+    "rainfall": 180, "ph": 6.5, "N": 80, "P": 50, "K": 55
+  },
+  "config": {
+    "cropType": "rice", "country": "India",
+    "cropDays": 60, "pesticides": 300, "year": 2024
+  }
+}
+```
+
+### GET `/predict/now`
+Reads latest sensor data from Firebase and runs all models.
+
+### POST `/predict/image`
+CNN leaf disease scanner.
+```json
+{ "image": "<base64_encoded_image>" }
+```
+
+### GET `/crops`
+Lists all supported crops per model.
+
+### GET `/status`
+Health check — shows model load status and Firebase connectivity.
+
+---
+
+## 🧪 Testing
+
+### Run Original 50-Scenario Suite
 ```bash
-cd frontend
-python -m http.server 8080
-```
-
-Open: **http://localhost:8080/dashboard.html**
-
-### Step 6 — Test Without Hardware
-
-```bash
-cd esp32
-python test_sensor.py
-```
-
-Or run the full model test suite:
-
-```bash
+# Ensure Flask is running first
 cd esp32
 python test_all_models.py
+# Duration: ~10 minutes (50 scenarios × 12s)
+```
+
+### Run New Unseen 33-Scenario Suite
+```bash
+cd esp32
+python test_new_scenarios.py
+# Duration: ~7 minutes (33 scenarios × 12s)
+```
+
+### Test Suite Results
+
+| Model | Original (50) | Unseen (33) |
+|-------|:---:|:---:|
+| Disease Risk Engine | 50/50 ✅ | 31/33 ✅ |
+| Irrigation Recommender | 50/50 ✅ | 33/33 ✅ |
+| Yield Predictor | 50/50 ✅ | — |
+| **Overall** | **150/150** | **97%+** |
+
+---
+
+## 📊 ProjectFlow Score (March 2026)
+
+| Category | Score | Grade |
+|----------|:-----:|-------|
+| Security | 73/100 | Good |
+| Originality | 83/100 | Excellent |
+| Documentation | 15/100 | Poor → improving |
+| **Total** | **46/100** | Fair |
+
+> Documentation score is being actively improved with this README and inline code comments.
+
+---
+
+## 🌐 Firebase Database Structure
+
+```
+/users/
+  {uid}/
+    config/
+      cropType: "rice"
+      country: "India"
+      cropDays: 60
+      pesticides: 300
+      year: 2024
+    sensors/
+      latest/
+        temperature: 28
+        humidity: 75
+        soilMoisture: 350
+        rainfall: 180
+        ph: 6.5
+        N: 80
+        P: 50
+        K: 45
+        timestamp: "2024-..."
+    predictions/
+      disease/
+        label: "Healthy"
+        riskScore: 12
+        riskReasons: [...]
+        atRiskProb: 0.12
+        timestamp: "..."
+      irrigation/
+        label: "No Irrigation"
+        confidence: 0.91
+        timestamp: "..."
+      yield/
+        kgPerHa: 4301
+        hgPerHa: 43010
+        timestamp: "..."
+    cnn_prediction/
+      crop: "Rice"
+      disease: "Leaf Blast"
+      is_healthy: false
+      confidence: 94.2
+      treatment: "Apply tricyclazole..."
+      top3: [...]
+      timestamp: "..."
 ```
 
 ---
 
-## 📊 Dashboard Features
+## 🔧 ESP32 Sensor Configuration
 
-- **Splash animation** — seed particle animation on first load
-- **Login / Register** — Email/Password or Google Sign-In
-- **Profile management** — upload photo, edit display name
-- **Hero banner** — full crop-specific background image (changes per crop type)
-- **8 sensor cards** — temperature, humidity, soil moisture, rainfall, pH, N, P, K with live sparkline charts
-- **3 AI prediction cards** — Disease Risk (donut chart + disease name), Smart Irrigation (confidence bar), Yield Forecast (regional comparison)
-- **Live weather widget** — today's rainfall from Open-Meteo, auto-detects location
-- **Soil Quality Index** — calculated from pH, N, P, K values (0–100 score)
-- **24h telemetry chart** — rolling moisture, temperature, humidity history
-- **System Intelligence Feed** — real-time alerts from predictions
-- **Bell notifications** — all events pushed to notification panel
-- **Demo Mode** — cycles 4 realistic scenarios every 5 seconds
-- **Settings panel** — update crop, country, days, pesticides, year
-- **Per-user isolation** — each farmer sees only their own data
+| Sensor | Model | Pin | Notes |
+|--------|-------|-----|-------|
+| Temperature + Humidity | DHT22 | GPIO 4 | ±0.5°C accuracy |
+| Soil Moisture | Capacitive v1.2 | ADC GPIO 34 | Scale: 120=wet, 800=dry |
+| pH | Analog pH module | ADC GPIO 35 | Calibrate with buffer solutions |
+| NPK | RS485 NPK sensor | UART GPIO 16/17 | Modbus RTU protocol |
 
 ---
 
-## 🗺️ Crop Image Support
+## ⚠️ Known Limitations
 
-Hero banner automatically shows a real field photograph for each crop:
-
-| Crop | Image |
-|---|---|
-| Maize | Corn field |
-| Rice | Paddy field |
-| Wheat | Golden wheat field |
-| Cotton | Cotton field |
-| Coffee | Coffee plantation |
-| Banana, Mango, Grapes, Apple, Orange | Fruit orchards |
-| Potato, Tomato, Sugarcane, Coconut | Respective crop fields |
-| All others | Default farm landscape |
+1. **Yield model magnitude** — FAOSTAT data is country-level average, not field-level. Predictions are indicative, not precise.
+2. **CNN scanner** — requires clear, well-lit leaf photos. Background clutter reduces accuracy.
+3. **Irrigation model** — the 420–550 soil moisture middle zone relies on the GBM model which may be less reliable for crops added after v1 (onion, sunflower, ginger, turmeric).
+4. **No offline mode** — requires internet connection for Firebase sync.
 
 ---
 
-## 🔗 API Endpoints
+## 🛠️ Tech Stack
 
-All endpoints except `/crops` and `/status` require `Authorization: Bearer <firebase_id_token>` header.
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| POST | `/predict` | Required | Run predictions with custom sensor + config data |
-| GET | `/predict/now` | Required | Run predictions using user's current Firebase data |
-| POST | `/register-listener` | Required | Register real-time sensor listener for this user |
-| GET | `/crops` | Public | List all supported crops per model |
-| GET | `/status` | Public | Health check — models loaded, Firebase connected |
-
----
-
-## 🗂️ Development Phases
-
-| Phase | Task | Status |
-|---|---|---|
-| Phase 1 | Disease model (22 crops, 84.6%) | ✅ Complete |
-| Phase 1 | Irrigation model (9 crops, 92.4%) | ✅ Complete |
-| Phase 1 | Yield model | ✅ Complete |
-| Phase 1 | Flask backend + Firebase integration | ✅ Complete |
-| Phase 2 | Yield model (23 crops, R²=0.9607, OWID+Kaggle) | ✅ Complete |
-| Phase 2 | Disease model v2 (49 crops + disease names) | ✅ Complete |
-| Phase 2 | Multi-user authentication + user-scoped data | ✅ Complete |
-| Phase 2 | Google Sign-In | ✅ Complete |
-| Phase 2 | Weather API replacing rain gauge hardware | ✅ Complete |
-| Phase 2 | Dashboard redesign (KISAAN AI) | ✅ Complete |
-| Phase 2 | Security hardening (API key, Firebase rules) | ✅ Complete |
-| Phase 2 | Disease name prediction | ✅ Complete |
-| Phase 2 | Irrigation rule override (soil moisture dominant) | ✅ Complete |
-| Phase 2 | Irrigation model retrain (FAO AQUASTAT data) | ⏳ Pending |
-
----
-
-## ⚠️ Known Issues
-
-| Issue | Details | Status |
-|---|---|---|
-| Irrigation humidity bias | Model overweights humidity vs soil moisture | Fixed with rule override |
-| Disease model synthetic labels | Labels generated from crop profiles, not real observations | Acceptable for 4th sem project |
-| Yield climate data limited | OWID yields merged with Kaggle — only 101 countries match | Accepted tradeoff |
-| Rice duplicate in OWID | OWID has 'Rice', Kaggle has 'Rice, paddy' — merged as 'Rice' | Fixed in notebook |
-| CV memory crash on Windows | `cross_val_score` with `n_jobs=-1` kills process | Fixed with `n_jobs=1` |
-| Google Auth popup blocked | Browser may block popup — allow popups for localhost | User setting |
+| Layer | Technology |
+|-------|-----------|
+| IoT Hardware | ESP32, DHT22, Capacitive Soil Sensor, pH Module, NPK Sensor |
+| Frontend | Vanilla JavaScript, Firebase SDK 9.23.0 (compat), Chart.js |
+| Backend | Python 3.10, Flask 3.x, flask-cors, firebase-admin |
+| ML — Classical | scikit-learn, XGBoost, GradientBoosting, RandomForest |
+| ML — Deep Learning | TensorFlow 2.x, Keras, MobileNetV2 |
+| Database | Firebase Realtime Database |
+| Authentication | Firebase Authentication (Google OAuth + Email/Password) |
+| Data Sources | FAOSTAT / Our World in Data, PlantVillage, Kaggle crop datasets |
+| Agronomic Reference | ICAR crop production guidelines |
 
 ---
 
 ## 👥 Team
 
-| Name | GitHub | Contribution |
-|---|---|---|
-| Raghav Bansal | [@Raghav007-maker](https://github.com/Raghav007-maker) | Backend, ML models, Firebase |
-
-| Priya Shukla | [@PriyaShukla3694](https://github.com/PriyaShukla3694) | Frontend dashboard, UI/UX |
-
-| Anuj Kumar | [@aksaxena9412-ctrl] |Esp32 , Sensor codes , hardware integration , Security  |
-
-**GitHub:** [https://github.com/Raghav007-maker/4thSem_Mini_Project](https://github.com/Raghav007-maker/4thSem_Mini_Project)
-
-**Firebase Project:** `smart-agriculture-ai-6e8c5`
+| Name | Role |
+|------|------|
+| Raghav Bansal | Backend, ML models, Firebase integration, ESP32 firmware |
+| Anuj Kumar | Frontend dashboard, UI/UX, authentication flow |
+| Priya Shukla | CNN model training, dataset preparation, testing |
 
 ---
 
 ## 📄 License
 
-Academic project — 4th Semester Mini Project. Not licensed for commercial use.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+> **Disclaimer:** The ML models in this project are for educational demonstration purposes. Do not use predictions for actual farming decisions without consulting a qualified agronomist.
 
 ---
 
-*KISAAN AI · Built with Flask · Firebase · scikit-learn · ESP32 · Chart.js · Open-Meteo*
+## 🙏 Acknowledgements
+
+- [ICAR](https://icar.org.in) — Agronomic thresholds and crop production guidelines
+- [PlantVillage](https://plantvillage.psu.edu) — Leaf disease image dataset
+- [Our World in Data / FAOSTAT](https://ourworldindata.org/crop-yields) — Yield data
+- [Firebase](https://firebase.google.com) — Realtime database and authentication
+- [TensorFlow](https://tensorflow.org) — MobileNetV2 transfer learning
