@@ -2168,7 +2168,18 @@
     if (!window.FIREBASE_CONFIG) throw new Error('firebase-config.js missing');
     firebase.initializeApp(window.FIREBASE_CONFIG);
     const auth = firebase.auth(), db = firebase.database();
-    const BACKEND_BASE_URL = (window.BACKEND_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+    const rawBackendBaseUrl = (window.BACKEND_BASE_URL || 'http://localhost:5000').trim();
+    let BACKEND_BASE_URL = '';
+    try {
+      const backendUrl = new URL(rawBackendBaseUrl, window.location.origin);
+      const localhostHosts = new Set(['localhost', '127.0.0.1']);
+      if (window.location.protocol === 'https:' && backendUrl.protocol !== 'https:' && !localhostHosts.has(backendUrl.hostname)) {
+        throw new Error('Insecure backend URL blocked on HTTPS page');
+      }
+      BACKEND_BASE_URL = backendUrl.toString().replace(/\/$/, '');
+    } catch (_) {
+      throw new Error('Invalid BACKEND_BASE_URL in firebase-config.js');
+    }
 
     // ── CROP IMAGES ───────────────────────────────────────────────────────────────
     const CROP_IMG = {
@@ -2290,7 +2301,11 @@
             pointer-events: auto;
             cursor: pointer;
           `;
-          toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+          const iconSpan = document.createElement('span');
+          iconSpan.textContent = icon;
+          const msgSpan = document.createElement('span');
+          msgSpan.textContent = String(message ?? '').slice(0, 240);
+          toast.replaceChildren(iconSpan, msgSpan);
           toast.onclick = () => toast.remove();
 
           container.appendChild(toast);
@@ -2320,8 +2335,7 @@
       }
     `;
     document.head.appendChild(style);
-      return null;
-    };
+
     const setAvatarImage = (el, src) => {
       if (!el) return;
       const safeSrc = safeImageSrc(src);
@@ -2781,7 +2795,14 @@
     function renderNotifPanel() {
       const list = document.getElementById('notif-list');
       if (!list) return;
-      if (notifications.length === 0) { list.innerHTML = '<div class="notif-empty">No notifications yet</div>'; return; }
+      if (notifications.length === 0) {
+        list.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'notif-empty';
+        empty.innerText = 'No notifications yet';
+        list.appendChild(empty);
+        return;
+      }
       list.replaceChildren();
       notifications.forEach(n => {
         const row = document.createElement('div');
@@ -2852,6 +2873,16 @@
     function uploadPhoto(input) {
       if (!input.files || !input.files[0]) return;
       const file = input.files[0];
+      if (!file.type || !file.type.startsWith('image/')) {
+        Toast.error('Only image files are allowed');
+        input.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        Toast.error('Profile photo too large. Max 2MB.');
+        input.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = e => {
         const src = e.target.result;
@@ -3006,6 +3037,11 @@
     function onCnnFileSelected(input) {
       if (!input.files || !input.files[0]) return;
       const file = input.files[0];
+      if (!file.type || !file.type.startsWith('image/')) {
+        Toast.error('Only image files are allowed');
+        input.value = '';
+        return;
+      }
       if (file.size > 10 * 1024 * 1024) { alert('Image too large. Max 10MB.'); return; }
       const reader = new FileReader();
       reader.onload = e => {

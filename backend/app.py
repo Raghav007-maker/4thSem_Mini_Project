@@ -2,12 +2,14 @@ import os
 import io
 import json
 import base64
+import binascii
 import logging
 import threading
+import re
 import numpy as np
 import pandas as pd
 import joblib
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -584,7 +586,7 @@ def crop_health_risk_engine(crop, N, P, K, temp, humidity, rainfall, ph):
         "riskScore"  : risk_score,          # NEW — 0 to 100
         "riskReasons": reasons,             # NEW — explainable reasons list
         "diseaseName": None,
-        "timestamp"  : datetime.utcnow().isoformat()
+        "timestamp"  : datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -604,11 +606,65 @@ def _safe_yield_item(crop_key):
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CONTENT_LENGTH", str(12 * 1024 * 1024)))
+
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        storage_uri="memory://",  # Use "redis://localhost:6379" for production
+        default_limits=["200 per day", "50 per hour"],
+        strategy="fixed-window"
+    )
+    RATE_LIMITING_ENABLED = True
+    log.info("Rate limiting enabled (memory storage)")
+except ImportError:
+    RATE_LIMITING_ENABLED = False
+    log.warning("Flask-Limiter not installed. Rate limiting disabled. Install with: pip install Flask-Limiter")
+    # Create a dummy decorator that does nothing
+    class DummyLimiter:
+        def limit(self, *args, **kwargs):
+            return lambda f: f
+    limiter = DummyLimiter()
 
 
 def _cors_allowed_origins():
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    """
+    Get allowed CORS origins from environment or use secure defaults.
+    
+    In production, CORS_ALLOWED_ORIGINS must be explicitly set.
+    In dev mode, defaults to localhost.
+    """
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    
+    if not raw:
+        # Production check
+        if os.getenv("FLASK_ENV") == "production":
+            raise RuntimeError(
+                "CORS_ALLOWED_ORIGINS is required in production. "
+                "Set it to your domain: 'https://myapp.com' or multiple: 'https://app.com,https://api.app.com'. "
+                "For development, either set it or set FLASK_ENV to development."
+            )
+        # Dev mode defaults
+        return ["http://localhost:8080", "http://127.0.0.1:8080"]
+    
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    
+    # Validate origin format (must be http:// or https://)
+    url_pattern = re.compile(r'^https?://[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?'
+                             r'(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*'
+                             r'(:\d+)?$')
+    
+    for origin in origins:
+        if not url_pattern.match(origin):
+            raise ValueError(f"Invalid CORS origin format: {origin}. Must be http(s)://domain:port")
+    
+    log.info(f"CORS enabled for {len(origins)} origin(s)")
+    return origins
 
 
 CORS(
@@ -619,7 +675,17 @@ CORS(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-log.info("CORS enabled for origins: %s", ", ".join(_cors_allowed_origins()))
+log.info(f"CORS enabled for {len(_cors_allowed_origins())} origin(s)")
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(self)"
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 # ── Sensor Data Validation ────────────────────────────────────────────────────
 # Define valid ranges for each sensor
@@ -710,26 +776,84 @@ def validate_config_data(config):
     return len(errors) == 0, errors
 
 
+# ── Auth Failure Tracking ─────────────────────────────────────────────────────
+AUTH_FAILURE_TRACKING = {}  # {ip: [(timestamp, reason), ...]}
+AUTH_LOCK = threading.Lock()
+
+def track_auth_failure(ip, reason):
+    """Track authentication failures for attack detection."""
+    with AUTH_LOCK:
+        if ip not in AUTH_FAILURE_TRACKING:
+            AUTH_FAILURE_TRACKING[ip] = []
+        
+        AUTH_FAILURE_TRACKING[ip].append((datetime.now(timezone.utc), reason))
+        
+        # Keep only last 1 hour of failures
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+        AUTH_FAILURE_TRACKING[ip] = [
+            (ts, r) for ts, r in AUTH_FAILURE_TRACKING[ip] if ts > cutoff
+        ]
+        
+        # Alert if excessive failures (5+ in 1 hour = potential attack)
+        if len(AUTH_FAILURE_TRACKING[ip]) >= 5:
+            log.critical(
+                "SECURITY ALERT: %d auth failures from IP %s in past hour. "
+                "Possible brute force attack detected.",
+                len(AUTH_FAILURE_TRACKING[ip]), ip
+            )
+
+def sanitize_for_log(value, max_len=100):
+    """Remove newlines and control characters to prevent log injection."""
+    if not isinstance(value, str):
+        value = str(value)
+    return value.replace("\n", "\\n").replace("\r", "\\r")[:max_len]
+
+
 # ── Auth decorator ────────────────────────────────────────────────────────────
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # In TEST_MODE, use dummy user ID
+        # Security check: TEST_MODE should never be true in production
         if TEST_MODE:
+            flask_env = os.getenv("FLASK_ENV", "development").lower()
+            if flask_env == "production":
+                log.critical(
+                    "SECURITY ALERT: TEST_MODE=true detected in PRODUCTION environment! "
+                    "All authentication is bypassed. Rejecting request."
+                )
+                return jsonify({"error": "Service temporarily unavailable"}), 503
+            
+            # In development/test mode, use dummy credentials
             request.uid = "test_user_001"
             request.user_email = "test@kisaan.ai"
             return f(*args, **kwargs)
         
+        # Production: require valid Firebase token
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            reason = "missing_auth_header"
+            track_auth_failure(request.remote_addr, reason)
+            log.warning("Auth failure from %s: %s", request.remote_addr, reason)
             return jsonify({"error": "Missing or invalid Authorization header"}), 401
+        
         id_token = auth_header[len("Bearer "):].strip()
         try:
-            decoded = auth.verify_id_token(id_token)
+            decoded = auth.verify_id_token(
+                id_token,
+                check_revoked=os.getenv("FIREBASE_CHECK_REVOKED", "true").lower() == "true"
+            )
             request.uid = decoded["uid"]
             request.user_email = decoded.get("email", "unknown")
+            
+            # Clear failures on successful auth
+            with AUTH_LOCK:
+                if request.remote_addr in AUTH_FAILURE_TRACKING:
+                    del AUTH_FAILURE_TRACKING[request.remote_addr]
+            
         except Exception as e:
-            log.warning("Token verification failed: %s", e)
+            reason = str(e)[:50]
+            track_auth_failure(request.remote_addr, reason)
+            log.warning("Token verification failed from %s: %s", request.remote_addr, reason)
             return jsonify({"error": "Invalid or expired token"}), 401
         return f(*args, **kwargs)
     return decorated
@@ -758,11 +882,15 @@ def user_cnn_ref(uid):
 
 
 def parse_json_body():
+    if request.content_length and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
+        return None, (jsonify({"error": "Payload too large"}), 413)
     if not request.is_json:
         return None, (jsonify({"error": "Request content-type must be application/json"}), 415)
     body = request.get_json(silent=True)
     if body is None:
         return None, (jsonify({"error": "Malformed JSON payload"}), 400)
+    if not isinstance(body, dict):
+        return None, (jsonify({"error": "JSON payload must be an object"}), 400)
     return body, None
 
 
@@ -787,7 +915,7 @@ def predict_disease(sensor, config):
             "riskReasons": [],
             "reason"     : f"'{crop}' not supported.",
             "supported"  : sorted(DISEASE_CROPS.keys()),
-            "timestamp"  : datetime.utcnow().isoformat()
+            "timestamp"  : datetime.now(timezone.utc).isoformat()
         }
 
     N    = float(sensor.get("N", 0))
@@ -796,10 +924,10 @@ def predict_disease(sensor, config):
     temp = float(sensor.get("temperature", 25))
     rh   = float(sensor.get("humidity", 60))
     rain = float(sensor.get("rainfall", 100))
-    ph   = float(sensor.get("ph", 6.5))
+    ph   = float(sensor.get("pH", sensor.get("ph", 6.5)))
 
     result = crop_health_risk_engine(crop, N, P, K, temp, rh, rain, ph)
-    log.info("Health risk [%s] → %s (score=%d)", crop, result["label"], result["riskScore"])
+    log.info("Health risk [%s] → %s (score=%d)", sanitize_for_log(crop), result["label"], result["riskScore"])
     return result
 
 
@@ -812,7 +940,7 @@ def predict_irrigation(sensor, config):
             "confidence": None,
             "reason"    : f"'{crop}' not supported.",
             "supported" : sorted(IRRIGATION_CROPS.keys()),
-            "timestamp" : datetime.utcnow().isoformat()
+            "timestamp" : datetime.now(timezone.utc).isoformat()
         }
 
     crop_enc = irrigation_le.transform([IRRIGATION_CROPS[crop]])[0]
@@ -833,18 +961,18 @@ def predict_irrigation(sensor, config):
     if soil >= 550:
         return {"irrigate": 1, "label": "Irrigate",
                 "confidence": round(float(max(prob)), 4),
-                "timestamp": datetime.utcnow().isoformat()}
+                "timestamp": datetime.now(timezone.utc).isoformat()}
     elif soil <= 420:   # tightened — soil <=420 is wet enough, no irrigation needed
         return {"irrigate": 0, "label": "No Irrigation",
                 "confidence": round(float(max(prob)), 4),
-                "timestamp": datetime.utcnow().isoformat()}
+                "timestamp": datetime.now(timezone.utc).isoformat()}
 
     # Middle zone (350–550): trust the model
     return {
         "irrigate"  : int(pred),
         "label"     : "Irrigate" if pred == 1 else "No Irrigation",
         "confidence": round(float(max(prob)), 4),
-        "timestamp" : datetime.utcnow().isoformat()
+        "timestamp" : datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -859,12 +987,12 @@ def predict_yield(sensor, config):
             "kgPerHa"  : None,
             "reason"   : f"'{crop}' not supported.",
             "supported": sorted(YIELD_CROPS.keys()),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     # ── Build feature row with EXACT column values model was trained on ───────
     country   = config.get("country", "India")
-    year      = int(config.get("year", datetime.utcnow().year))
+    year      = int(config.get("year", datetime.now(timezone.utc).year))
     rainfall  = max(1.0, float(sensor.get("rainfall", 100)))
     pesticides = float(config.get("pesticides", 100))
     avg_temp  = float(sensor.get("temperature", 25))
@@ -883,20 +1011,21 @@ def predict_yield(sensor, config):
         hg_per_ha = float(yield_model.predict(X)[0])
     except Exception as e:
         log.error("Yield model predict error for crop '%s' (item='%s'): %s", crop, item_name, e)
-        return {"hgPerHa": None, "kgPerHa": None, "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()}
+        return {"hgPerHa": None, "kgPerHa": None, "error": "Yield prediction failed",
+                "timestamp": datetime.now(timezone.utc).isoformat()}
 
     # Sanity check: most crops yield between 500 and 1,000,000 hg/ha
     # If the model returns something clearly wrong, log a warning
     if not (500 <= hg_per_ha <= 1_000_000):
         log.warning("Yield model returned suspicious value for '%s': %.0f hg/ha "
-                    "(item='%s', country='%s', year=%d, rain=%.1f, temp=%.1f)",
-                    crop, hg_per_ha, item_name, country, year, rainfall, avg_temp)
+                "(item='%s', country='%s', year=%d, rain=%.1f, temp=%.1f)",
+                sanitize_for_log(crop), hg_per_ha, sanitize_for_log(item_name),
+                sanitize_for_log(country), year, rainfall, avg_temp)
 
     return {
         "hgPerHa"  : round(hg_per_ha, 2),
         "kgPerHa"  : round(hg_per_ha / 10, 2),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -926,10 +1055,13 @@ def predict_leaf_image(image_b64):
     try:
         from PIL import Image
         import tensorflow as tf
+        Image.MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", "25000000"))
 
         if "," in image_b64:
             image_b64 = image_b64.split(",", 1)[1]
-        img_bytes = base64.b64decode(image_b64)
+        img_bytes = base64.b64decode(image_b64, validate=True)
+        if len(img_bytes) > 8 * 1024 * 1024:
+            return {"error": "Decoded image too large. Max 8MB binary.", "timestamp": datetime.now(timezone.utc).isoformat()}
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         img = img.resize((CNN_IMG_SIZE, CNN_IMG_SIZE))
 
@@ -958,11 +1090,13 @@ def predict_leaf_image(image_b64):
             "confidence": best["confidence"],
             "treatment" : best["treatment"],
             "top3"      : top3,
-            "timestamp" : datetime.utcnow().isoformat()
+            "timestamp" : datetime.now(timezone.utc).isoformat()
         }
+    except (binascii.Error, ValueError):
+        return {"error": "Invalid base64 image payload", "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         log.error("CNN prediction error: %s", e)
-        return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        return {"error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 # ── Firebase listener ─────────────────────────────────────────────────────────
@@ -1021,6 +1155,7 @@ def start_firebase_listener():
 
 # ── REST Endpoints ────────────────────────────────────────────────────────────
 @app.route("/predict", methods=["POST"])
+@limiter.limit("10 per minute")  # 10 predictions per minute per IP
 @require_auth
 def predict_endpoint():
     body, err = parse_json_body()
@@ -1061,6 +1196,7 @@ def predict_endpoint():
 
 
 @app.route("/predict/now", methods=["GET"])
+@limiter.limit("10 per minute")  # 10 predictions per minute per IP
 @require_auth
 def predict_now():
     uid = request.uid
@@ -1091,6 +1227,7 @@ def predict_now():
 
 
 @app.route("/predict/image", methods=["POST"])
+@limiter.limit("5 per minute")  # Image processing is heavier, fewer requests per minute
 @require_auth
 def predict_image():
     body, err = parse_json_body()
@@ -1123,7 +1260,174 @@ def supported_crops():
     }), 200
 
 
+@app.route("/api/docs", methods=["GET"])
+def api_docs():
+    """Return comprehensive API documentation."""
+    return jsonify({
+        "service": "KISAAN AI - Precision Farming Intelligence Platform",
+        "version": "1.0.0",
+        "description": "AI-powered crop monitoring with IoT sensors, disease detection, irrigation, and yield forecasting",
+        "auth_required": "Firebase ID Token (Bearer token in Authorization header)",
+        "endpoints": {
+            "GET /crops": {
+                "description": "Get list of supported crops for each prediction model",
+                "auth": "none",
+                "response": {
+                    "disease_model": ["list of 48 crops"],
+                    "irrigation_model": ["list of 25 crops"],
+                    "yield_model": ["list of 23 crops"],
+                    "cnn_scanner": ["list of 22 crops"],
+                    "works_in_all_3": ["crops supported by all 3 models"]
+                }
+            },
+            "POST /predict": {
+                "description": "Run all predictions (disease risk, irrigation, yield) on sensor data",
+                "auth": "required",
+                "request_body": {
+                    "sensor": {
+                        "temperature": "float, °C",
+                        "humidity": "float, 0-100%",
+                        "soilMoisture": "float, 0-1000 scale",
+                        "rainfall": "float, mm",
+                        "pH": "float, 0-14",
+                        "N": "float, mg/kg nitrogen",
+                        "P": "float, mg/kg phosphorus",
+                        "K": "float, mg/kg potassium"
+                    },
+                    "config": {
+                        "cropType": "string (required, must be in supported crops)",
+                        "country": "string (default: India)",
+                        "cropDays": "int, 1-365",
+                        "pesticides": "float",
+                        "year": "int, 1990-2100"
+                    }
+                },
+                "response": {
+                    "disease": {
+                        "label": "Healthy | At_Risk | Not Available",
+                        "riskScore": "0-100",
+                        "riskReasons": ["array of explanation strings"],
+                        "timestamp": "ISO 8601"
+                    },
+                    "irrigation": {
+                        "irrigate": "0 or 1",
+                        "label": "Irrigate | No Irrigation",
+                        "confidence": "0.0-1.0"
+                    },
+                    "yield": {
+                        "kgPerHa": "float, kg per hectare",
+                        "hgPerHa": "float, hectograms per hectare"
+                    }
+                }
+            },
+            "GET /predict/now": {
+                "description": "Run predictions using latest sensor data from Firebase",
+                "auth": "required",
+                "response": "Same as /predict endpoint"
+            },
+            "POST /predict/image": {
+                "description": "Predict leaf disease from image using CNN model",
+                "auth": "required",
+                "request_body": {
+                    "image": "base64 encoded image (JPEG/PNG/WebP, max 8MB, any size)"
+                },
+                "response": {
+                    "crop": "string, crop name",
+                    "disease": "string, disease name or Healthy",
+                    "confidence": "float, 0-100 percent",
+                    "is_healthy": "boolean",
+                    "treatment": "string, recommended treatment",
+                    "top3": [
+                        {
+                            "crop": "string",
+                            "disease": "string",
+                            "confidence": "float",
+                            "treatment": "string"
+                        }
+                    ]
+                },
+                "note": "Images resized to 224x224 pixels for optimal accuracy"
+            },
+            "GET /status": {
+                "description": "Check API status and model availability",
+                "auth": "required",
+                "response": {
+                    "status": "running",
+                    "models": {
+                        "disease": "rule_engine_v2",
+                        "irrigation": "loaded | not_loaded",
+                        "yield": "loaded | not_loaded",
+                        "cnn": "loaded | not_loaded"
+                    },
+                    "cnn_classes": "int"
+                }
+            },
+            "POST /register-listener": {
+                "description": "Register Firebase Realtime DB listener for automatic predictions on sensor updates",
+                "auth": "required",
+                "response": {
+                    "message": "Listener registered for your account",
+                    "listenerActive": "boolean",
+                    "sensor_path": "string, Firebase path to listen to",
+                    "config_path": "string, Firebase path to config",
+                    "predict_path": "string, Firebase path where predictions are written",
+                    "cnn_path": "string, Firebase path where CNN results are written"
+                }
+            }
+        },
+        "rate_limits": {
+            "/predict": "10 per minute per IP",
+            "/predict/now": "10 per minute per IP",
+            "/predict/image": "5 per minute per IP",
+            "global": "50 per hour per IP"
+        },
+        "constraints": {
+            "max_payload_size": "12 MB",
+            "max_image_size": "8 MB",
+            "image_resize_to": "224x224 pixels",
+            "token_expiry": "1 hour (Firebase default)"
+        },
+        "examples": {
+            "predict_wheat": {
+                "url": "/predict",
+                "method": "POST",
+                "headers": {"Authorization": "Bearer <firebase_id_token>", "Content-Type": "application/json"},
+                "body": {
+                    "sensor": {
+                        "temperature": 18.5,
+                        "humidity": 62,
+                        "soilMoisture": 450,
+                        "rainfall": 80,
+                        "pH": 6.8,
+                        "N": 100,
+                        "P": 30,
+                        "K": 25
+                    },
+                    "config": {
+                        "cropType": "wheat",
+                        "country": "India",
+                        "cropDays": 60,
+                        "pesticides": 2,
+                        "year": 2024
+                    }
+                }
+            }
+        },
+        "error_codes": {
+            "400": "Bad Request - Invalid input data",
+            "401": "Unauthorized - Missing or invalid auth token",
+            "403": "Forbidden - Token revoked or expired",
+            "413": "Payload Too Large - Request exceeds 12MB",
+            "415": "Unsupported Media Type - Content-Type must be application/json",
+            "429": "Too Many Requests - Rate limit exceeded",
+            "500": "Internal Server Error - Model prediction failed",
+            "503": "Service Unavailable - TEST_MODE in production"
+        }
+    }), 200
+
+
 @app.route("/status", methods=["GET"])
+@limiter.limit("30 per minute")  # Status checks are lightweight
 @require_auth
 def status():
     return jsonify({
@@ -1140,6 +1444,7 @@ def status():
 
 
 @app.route("/register-listener", methods=["POST"])
+@limiter.limit("5 per hour")  # Register listener is not frequently called
 @require_auth
 def register_listener():
     uid = request.uid

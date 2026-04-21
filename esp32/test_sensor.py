@@ -1,17 +1,22 @@
 import firebase_admin
 from firebase_admin import credentials, db
 import time
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 
-# ── IMPORTANT: paste your Firebase UID here ──────────────────────────────────
-# Get it from browser console after login:
-#   firebase.auth().currentUser.uid
-USER_UID = "D0H5vS9PTfXENKobo8s54qAluf52"
-# ─────────────────────────────────────────────────────────────────────────────
+USER_UID = os.getenv("FIREBASE_TEST_UID")
+FIREBASE_DB_URL = os.getenv("FIREBASE_DB_URL")
+FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "../backend/firebase-key.json")
 
-cred = credentials.Certificate("../backend/firebase-key.json")
+if not USER_UID:
+    raise RuntimeError("Set FIREBASE_TEST_UID in your environment before running this script.")
+
+if not FIREBASE_DB_URL:
+    raise RuntimeError("Set FIREBASE_DB_URL in your environment before running this script.")
+
+cred = credentials.Certificate(FIREBASE_KEY_PATH)
 firebase_admin.initialize_app(cred, {
-    "databaseURL": "https://smart-agriculture-ai-6e8c5-default-rtdb.firebaseio.com"
+    "databaseURL": FIREBASE_DB_URL
 })
 
 # ── Fake sensor data — edit these values to test different scenarios ──────────
@@ -24,7 +29,7 @@ sensor_data = {
     "N"            : 60,
     "P"            : 55,
     "K"            : 80,
-    "timestamp"    : datetime.utcnow().isoformat()
+    "timestamp"    : datetime.now(timezone.utc).isoformat()
 }
 
 # ── Config — tells Flask which crop/country to use for predictions ────────────
