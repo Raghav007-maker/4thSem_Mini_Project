@@ -3,7 +3,7 @@ from firebase_admin import credentials, db
 import time
 import os
 from datetime import datetime, timezone
-
+                                                           
 USER_UID = os.getenv("FIREBASE_TEST_UID")
 FIREBASE_DB_URL = os.getenv("FIREBASE_DB_URL")
 FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "../backend/firebase-key.json")
@@ -19,7 +19,7 @@ firebase_admin.initialize_app(cred, {
     "databaseURL": FIREBASE_DB_URL
 })
 
-# ── Fake sensor data — edit these values to test different scenarios ──────────
+# ── Fake sensor data — edit these values to test different scenarios -----------
 sensor_data = {
     "temperature"  : 28.5,
     "humidity"     : 75.0,
@@ -32,7 +32,7 @@ sensor_data = {
     "timestamp"    : datetime.now(timezone.utc).isoformat()
 }
 
-# ── Config — tells Flask which crop/country to use for predictions ────────────
+# ── Config — tells Flask which crop/country to use for predictions ----------
 config_data = {
     "cropType"   : "maize",
     "country"    : "India",
@@ -45,11 +45,11 @@ print(f"Writing data for user: {USER_UID[:8]}...")
 print(f"Sensor data: {sensor_data}")
 print(f"Config data: {config_data}")
 
-# Write config first so Flask has crop info when sensor triggers
+# Write config first so Flask has crop info when sensor triggers ---------
 db.reference(f"/users/{USER_UID}/config").set(config_data)
 print("\nConfig written.")
 
-# Write sensor data — this triggers Flask listener → predictions
+# Write sensor data — this triggers Flask listener → predictions --------
 db.reference(f"/users/{USER_UID}/sensors/latest").set(sensor_data)
 print("Sensor data written.")
 
