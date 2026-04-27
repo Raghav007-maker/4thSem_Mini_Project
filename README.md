@@ -1,6 +1,6 @@
 # 🌾 KISAAN AI — Precision Farming Intelligence Platform
 
-> **4th Semester Mini Project** | B.Tech CSE | 2024–25
+> **4th Semester Mini Project** | B.Tech CSE-AIML | 2025–26
 > Raghav Bansal · Anuj Kumar · Priya Shukla
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
