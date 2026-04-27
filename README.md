@@ -427,7 +427,7 @@ python test_new_scenarios.py
 |------|------|
 | Raghav Bansal | Backend, ML models, Firebase integration, ESP32 firmware |
 | Anuj Kumar | Frontend dashboard, UI/UX, authentication flow |
-| Priya Shukla | CNN model training, dataset preparation, testing |
+| Priya Shukla | CNN model training, dataset preparation, Model testing |
 
 ---
 
